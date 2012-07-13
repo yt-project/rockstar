@@ -1,0 +1,32 @@
+v0.99 (3/19/2012):
+*) Updated the unbinding calculation to use physical velocities instead of peculiar velocities.
+*) Improved network layer now supports transparent auto-healing in case of connection failures and better rejection of non-Rockstar connections.
+*) No lower boxsize limit for non-periodic boundary conditions.
+*) A utility for calculating host-subhalo relationships is now included (see README).
+*) Included example source code for reading the particle output formats (see examples/).
+
+v0.98.5 (1/10/2012):
+*) Fixed an important issue with calculating Vrms: previously, it was calculated using all particles associated to the halo, instead of just those within the halo radius R_delta (thanks to Michael Busha for catching this).
+*) Added support for easy restarting of Rockstar if it terminates in the middle of a run for any reason.  (See restart.cfg in README).
+*) Added support for specifying the GADGET halo particle type (if it is not the default, 1).
+*) Support for the undocumented "GADGET_INTERNAL" format was removed.
+*) Added missing support for auto server port when server address is specified.
+
+v0.98 (12/27/2011):
+*) Increased the speed of boundary checks; the particle distribution stage is now more efficient.
+*) Fixed an issue whereby duplicate halos could be output in merger trees; this only appears on certain versions of Linux when there are very few halos per processor (thanks to Markus Haider for finding this!).
+*) Fixed two issues where calculating the position and velocity variance of particle groups would in hang in rare instances (Thanks to Michael Busha for finding the first of these!).
+*) Fixed a mistake in the IO code which prevented TIPSY support from working (Thanks to Michael Busha for catching this!).
+*) Updated the readme to be clearer about how to run Rockstar in master/client mode.
+
+v0.97.1:
+*) Added support for user-configurable load-balancing.
+
+v0.97 (11/1/2011):
+*) Fixed a race condition which was halting execution for snapshots without any halos.
+*) Included config files to run on the Ranger machine at TACC.
+*) Added YT support (from Matt Turk).
+*) Added initial/alpha support for reading TIPSY files (from Greg Stinson).
+
+v0.96.2 (10/20/2011):
+Initial public release

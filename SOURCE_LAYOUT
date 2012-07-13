@@ -1,0 +1,41 @@
+Short list of source code files and their contents:
+
+main.c: Main program execution path.
+
+rockstar.c: Master code for finding halos/subhalos.
+fof.c: Code for assembling FOF groups.
+groupies.c: Code for finding substructure within 3D FOF groups.
+subhalo_metric.c: Code for deciding particle-halo membership.
+potential.c: Code for calculating gravitational potentials.
+fun_times.c: Code for calculating likely progenitors of current halo seeds.
+merger.c: Code for calculating particle-based merger trees.
+
+halo.h: Halo structure definition
+particle.h: Particle structure definition
+universal_constants.h: Gravitational and conversion constants.
+jacobi.c: Code for calculating eigenvectors/eigenvalues of symmetric matrices.
+distance.c: Code for calculating cosmological distances.
+universe_time.c: Code for converting scale factors to times.
+nfw.c: Code for calculating the scale radius given a mass and vmax for an
+       NFW halo.
+
+io/meta_io.c: Code for reading and writing particle and halo data.
+io/io_[ascii|art|gadget|generic|tipsy|internal].c: 
+   Code for reading particle formats.
+io/io_bgc2.c: Code for writing particles in the BGC2 format
+io/io_util.c: Code for reading FORTRAN formats and swapping endianness.
+io/read_config.c: Code for parsing configuration files.
+io/stringparse.c: Efficient scanf() replacement.
+
+server.c: Code for master task. (Parallel IO)
+client.c: Code for reading / analysis parallel tasks.  (Parallel IO)
+load_balance.c: Code for dividing work fairly among analysis tasks.
+inet/socket.c: Code for interfacing with TCP sockets.
+
+config.c: Code for loading configuration.
+config.template.h: Code for config variables.
+
+fast3tree.c: Binary Space Partitioning tree code.
+litehash.c: Lightweight hash tables.
+check_syscalls.c: Error-checking for fopen(), realloc(), fread(), and fwrite().
+
