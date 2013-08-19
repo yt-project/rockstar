@@ -6,18 +6,15 @@
 
 struct potential {
   float pos[6], r2;
-  //union {
-    double pe;
-  //  int64_t haloid;
-  //};
-  //union {
-    float ke;
-  //  float density;
-  //};
+  double pe;
+  float ke;
 #ifdef POTENTIAL_COMPARISON
-  double pe2;
+  float pe2, ke2, pe3, ke3;
   float v,r;
 #endif /* POTENTIAL_COMPARISON */
+#ifdef CALC_POTENTIALS
+  int64_t id;
+#endif /* CALC_POTENTIALS */
   int32_t flags;
 };
 

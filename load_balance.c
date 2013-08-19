@@ -174,10 +174,8 @@ void decide_chunks_for_memory_balance() {
 
   sort_chunks();
   num_proj = 1 + (1 + chunks[1])*chunks[0];
-  pr = check_realloc(pr, sizeof(struct projection)*num_proj,
-		     "Allocating projections.");
-  divisions = check_realloc(divisions, sizeof(float)*(chunks[2]+1),
-			    "Allocating box divisions.");
+  check_realloc_s(pr, sizeof(struct projection), num_proj);
+  check_realloc_s(divisions, sizeof(float), (chunks[2]+1));
   for (i=0; i<num_proj; i++) pr[i].id = i;
   populate_bounds(0, NULL, pr[0].bounds, 0, BOX_SIZE);
 
@@ -217,11 +215,14 @@ void decide_chunks_for_memory_balance() {
 
 void load_balance(void) {
   int64_t i, done = 0, no_more_work = NUM_READERS, id;
-  int64_t id_offset = 0, next_assigned = 0;
+  int64_t id_offset = 0, next_assigned = 0, num_finished = 0;
+  int64_t sent_all_clear = 0;
   char cmd[5] = {0};
 
-  for (i=NUM_READERS; i<num_clients; i++)
-    clients[i].extra_workers = clients[i].status = 0;
+  for (i=NUM_READERS; i<num_clients; i++) {
+    clients[i].status = 0;
+    clients[i].workers = 1;
+  }
 
   while (done < NUM_WRITERS) {
     clear_rsocket_tags();
@@ -232,15 +233,12 @@ void load_balance(void) {
       recv_from_socket(clients[i].cs, cmd, 4);
       
       if (!strcmp(cmd, "hcnt")) {
-	assert(clients[i].status < 2);
-	clients[i].status = 2;
+	assert(clients[i].status == 2);
 	recv_from_socket(clients[i].cs, &(clients[i].num_halos), sizeof(int64_t));
-	if (!clients[i].extra_workers) {
-	  clients[i].status = 3;
-	  send_to_socket_noconfirm(clients[i].cs, "outp", 4);
-	  send_to_socket_noconfirm(clients[i].cs, &id_offset, sizeof(int64_t));
-	  id_offset += clients[i].num_halos;
-	}
+	clients[i].status = 3;
+	send_to_socket_noconfirm(clients[i].cs, "outp", 4);
+	send_to_socket_noconfirm(clients[i].cs, &id_offset, sizeof(int64_t));
+	id_offset += clients[i].num_halos;
       }
 
       else if (!strcmp(cmd, "err!")) {
@@ -257,13 +255,11 @@ void load_balance(void) {
       else if (!strcmp(cmd, "nmwk")) {
 	recv_from_socket(clients[i].cs, &id, sizeof(int64_t));
 	if (id < 0) id = i;
-	else clients[id].extra_workers--;
+	clients[id].workers--;
 	if (!clients[id].status) clients[id].status = 1;
-	if ((clients[id].status == 2) && !(clients[id].extra_workers)) {
-	  clients[id].status = 3;
-	  send_to_socket_noconfirm(clients[id].cs, "outp", 4);
-	  send_to_socket_noconfirm(clients[id].cs, &id_offset, sizeof(int64_t));
-	  id_offset += clients[id].num_halos;
+	if ((clients[id].status == 1) && !(clients[id].workers)) {
+	  clients[id].status = 2;
+	  num_finished++;
 	}
 	while (no_more_work < num_clients && clients[no_more_work].status) 
 	  no_more_work++;
@@ -281,7 +277,7 @@ void load_balance(void) {
 		   strlen(clients[next_assigned].address)+1);
 	  send_to_socket_noconfirm(clients[i].cs, clients[next_assigned].serv_port,
 		   strlen(clients[next_assigned].serv_port)+1);
-	  clients[next_assigned].extra_workers++;
+	  clients[next_assigned].workers++;
 	  next_assigned--;
 	}
       }
@@ -290,6 +286,11 @@ void load_balance(void) {
 	shutdown_clients();
 	exit(0);
       }
+    }
+    if (num_finished == NUM_WRITERS && !sent_all_clear) {
+      sent_all_clear = 1;
+      for (i=NUM_READERS; i<num_clients; i++)
+	send_to_socket_noconfirm(clients[i].cs, "allc", 4);
     }
   }
 }

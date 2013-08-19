@@ -20,7 +20,7 @@
 #include "jacobi.h"
 
 #define FAST3TREE_DIM 6
-#define POINTS_PER_LEAF 50
+#define POINTS_PER_LEAF 40
 #define FAST3TREE_PREFIX GROUPIES
 #define FAST3TREE_TYPE struct particle
 #include "fast3tree.c"
@@ -29,7 +29,7 @@ struct particle *copies = NULL; //For storing phase-space FOFs
 int64_t *particle_halos = NULL;
 float *particle_r = NULL;
 struct potential *po = NULL;
-int64_t num_alloc_pc = 0;
+int64_t num_alloc_pc = 0, num_copies = 0;
 
 struct fof *subfofs = NULL;
 int64_t num_subfofs = 0, num_alloced_subfofs = 0;
@@ -41,36 +41,49 @@ struct extra_halo_info *extra_info = NULL;
 struct fast3tree_results *res = NULL;
 struct fast3tree *phasetree = NULL;
 
-int num_alloc_gh = 0;
+int64_t num_alloc_gh = 0, num_growing_halos = 0;
 struct halo **growing_halos = NULL;
 
 int64_t *halo_ids = NULL;
 int64_t num_alloced_halo_ids = 0;
 
-float particle_thresh_dens = 0, particle_rvir_dens = 0;
+double particle_thresh_dens[5] = {0}, particle_rvir_dens = 0;
+double dynamical_time = 0;
 
 double vir_density(double a) {
   double x = 1.0/(1.0+a*a*a*Ol/Om)-1.0;
   return ((18*M_PI*M_PI + 82.0*x - 39*x*x)/(1.0+x));
 }
 
-void calc_mass_definition(void) {
-  int64_t length = strlen(MASS_DEFINITION);
-  char last_char = (length) ? MASS_DEFINITION[length-1] : 0;
+float _calc_mass_definition(char **md) {
+  int64_t length = strlen(*md);
+  char last_char = (length) ? md[0][length-1] : 0;
   float matter_fraction = 1.0/(1.0+pow(SCALE_NOW, 3)*Ol/Om);
   float cons = Om * CRITICAL_DENSITY / PARTICLE_MASS; // background density
-  char *mass = MASS_DEFINITION;
+  char *mass = *md;
+  float thresh_dens;
   if (mass[0] == 'm' || mass[0] == 'M') mass++;
 
   if (last_char == 'b' || last_char == 'B')
-    particle_thresh_dens = atof(mass) * cons;
+    thresh_dens = atof(mass) * cons;
   else if (last_char == 'c' || last_char == 'C')
-    particle_thresh_dens = atof(mass) * cons / matter_fraction;
+    thresh_dens = atof(mass) * cons / matter_fraction;
   else {
-    if (strcasecmp(MASS_DEFINITION, "vir")) MASS_DEFINITION = "vir";
-    particle_thresh_dens = vir_density(SCALE_NOW) * cons;
+    if (strcasecmp(*md, "vir")) *md = "vir";
+    thresh_dens = vir_density(SCALE_NOW) * cons;
   }
-  particle_rvir_dens = vir_density(SCALE_NOW) * cons;
+  return thresh_dens;
+}
+
+void calc_mass_definition(void) {
+  char *vir = "vir";
+  particle_thresh_dens[0] = _calc_mass_definition(&MASS_DEFINITION);
+  particle_thresh_dens[1] = _calc_mass_definition(&MASS_DEFINITION2);
+  particle_thresh_dens[2] = _calc_mass_definition(&MASS_DEFINITION3);
+  particle_thresh_dens[3] = _calc_mass_definition(&MASS_DEFINITION4);
+  particle_thresh_dens[4] = _calc_mass_definition(&MASS_DEFINITION5);
+  particle_rvir_dens = _calc_mass_definition(&vir);
+  dynamical_time = 1.0/sqrt((4.0*M_PI*Gc/3.0)*particle_rvir_dens*PARTICLE_MASS);
 }
 
 void lightcone_set_scale(float *pos) {
@@ -83,7 +96,7 @@ void lightcone_set_scale(float *pos) {
 }
 
 void add_new_halo(void) {
-  int i;
+  int64_t i;
   if ((num_halos % 1000)==0) {
     halos = check_realloc(halos, sizeof(struct halo)*(num_halos+1000),
 			  "Allocating room for halos.");
@@ -92,7 +105,7 @@ void add_new_halo(void) {
     memset(halos+num_halos, 0, sizeof(struct halo)*1000);
     for (i=num_halos; i<num_halos+1000; i++) {
       extra_info[i].child = extra_info[i].next_cochild = 
-	extra_info[i].prev_cochild = extra_info[i].sub_of = -1;
+	extra_info[i].ph = extra_info[i].prev_cochild = extra_info[i].sub_of = -1;
       extra_info[i].max_metric = 0;
       halos[i].flags |= GROWING_FLAG;
     }
@@ -111,63 +124,6 @@ void add_more_growing_halos(void) {
   growing_halos = check_realloc(growing_halos, sizeof(struct halo *)
 				*num_alloc_gh,
 				"Allocating room for growing halos.");
-}
-
-void calc_basic_halo_props(struct halo *h) {
-  int64_t j, k;
-  double pos[6] = {0}, pos2[6] = {0}, x;
-  double pos_err, vel_err;
-  h->r = h->vrms = 0;
-  for (j=0; j<h->num_p; j++)
-    for (k=0; k<6; k++) pos[k] += copies[h->p_start + j].pos[k];
-
-  for (k=0; k<6; k++) pos[k] /= (double)h->num_p;
-
-  for (j=0; j<h->num_p; j++)
-    for (k=0; k<6; k++) {
-      x = copies[h->p_start + j].pos[k] - pos[k];
-      pos2[k] += x*x;
-    }
-
-  for (k=0; k<6; k++) {
-    if (k<3) h->r += pos2[k] / (double)h->num_p;
-    else h->vrms += pos2[k] / (double)h->num_p;
-  }
-
-  pos_err = h->r / (double)h->num_p;
-  vel_err = h->vrms / (double)h->num_p;
-
-  if ((!h->min_pos_err) || (h->min_pos_err > pos_err)) {
-    h->min_pos_err = pos_err;
-    h->n_core = h->num_p;
-    for (k=0; k<3; k++) h->pos[k] = pos[k];
-  }
-
-  if ((!h->min_vel_err) || (h->min_vel_err > vel_err)) {
-    h->min_vel_err = vel_err;
-    for (k=3; k<6; k++) h->pos[k] = pos[k];
-  }
-  for (k=3; k<6; k++) h->bulkvel[k-3] = pos[k];
-
-  h->m = h->num_p;
-  if (!h->num_child_particles) h->num_child_particles = h->num_p;
-  
-  h->r = cbrt(h->num_p/((4.0*M_PI/3.0)*particle_rvir_dens));
-  h->child_r = cbrt(h->num_child_particles/((4.0*M_PI/3.0)*particle_rvir_dens));
-  //h->r = h->child_r;
-  h->vrms = sqrt(h->vrms);
-}
-
-void add_ang_mom(double L[3], float c[6], float pos[6]) {
-  // L = r x p;
-#define cross(a,x,y,s) L[a] s (pos[x]-c[x])*(pos[y+3]-c[y+3])
-  cross(0,1,2,+=);
-  cross(0,2,1,-=);
-  cross(1,2,0,+=);
-  cross(1,0,2,-=);
-  cross(2,0,1,+=);
-  cross(2,1,0,-=);
-#undef cross
 }
 
 int dist_compare(const void *a, const void *b) {
@@ -195,8 +151,7 @@ void _reset_potentials(struct halo *base_h, struct halo *h, float *cen, int64_t 
 }
 
 int64_t calc_particle_radii(struct halo *base_h, struct halo *h, float *cen, int64_t p_start, int64_t level, int64_t potential_only) {
-  int64_t j, total_p = p_start, child, first_child, parent; 
-  int64_t do_potential_only = 0;
+  int64_t j, total_p = p_start, child, first_child, parent;
 
   //Break accidental graph loops
   if (level >= num_alloced_halo_ids) add_more_halo_ids();
@@ -208,12 +163,8 @@ int64_t calc_particle_radii(struct halo *base_h, struct halo *h, float *cen, int
   first_child = child = extra_info[h-halos].child;
   total_p += h->num_p;
   while (child > -1) {
-    if (!potential_only)
-      do_potential_only = (halos[child].num_child_particles < 
-          DOUBLE_COUNT_SUBHALO_MASS_RATIO*base_h->num_child_particles) ? 0 : 1;
-    else do_potential_only = 1;
     total_p = calc_particle_radii(base_h, halos + child,
-                                  cen, total_p, level+1, do_potential_only);
+                                  cen, total_p, level+1, potential_only);
     child = extra_info[child].next_cochild;
     assert(child != first_child);
   }
@@ -227,193 +178,13 @@ int64_t calc_particle_radii(struct halo *base_h, struct halo *h, float *cen, int
   return total_p;
 }
 
-
-/*int64_t calc_particle_radii2(struct halo *base_h, struct halo *h, int64_t p_start, int64_t potential_only) {
-  struct halo_metric **children;
-  struct halo *child, *par = NULL;
-  int64_t num_children = 0, i, total_p = p_start, parent;
-  _reset_potentials(h, h, h->pos, total_p, 0, potential_only);
-  total_p += h->num_p;
-
-  parent = extra_info[h-halos].sub_of;
-  if (parent > -1) par = halos + parent;
-  children = find_children(h, par, h->child_r*2, &num_children);
-  for (i=0; i<num_children; i++) {
-    child = children[i]->target;
-    if ((child == base_h) || (potential_only &&
-       (extra_info[child-halos].cur_parent == (base_h - halos)))) continue;
-    _reset_potentials(h, child, h->pos, total_p, 0, potential_only);
-    total_p += child->num_p;
-    extra_info[child-halos].cur_parent = h - halos;
-    }*/
-
-  /*  if ((h == base_h) && (parent > -1) &&
-    (halos[parent].num_child_particles*INCLUDE_HOST_POTENTIAL_RATIO < h->num_child_particles))
-    total_p = calc_particle_radii2(base_h, halos + parent, total_p, 1);
-  */
-/*  return total_p;
-    }*/
-
-
-void _calc_num_child_particles(struct halo *h) {
-  int64_t child, first_child;
-
-  if (h->num_child_particles) return;
-  h->num_child_particles = h->num_p;
-
-  first_child = child = extra_info[h-halos].child;
-  while (child > -1) {
-    _calc_num_child_particles(halos + child);
-    if (halos[child].num_p < DOUBLE_COUNT_SUBHALO_MASS_RATIO*h->num_p)
-      h->num_child_particles += halos[child].num_child_particles;
-    child = extra_info[child].next_cochild;
-    assert(child != first_child);
-  }
-}
-
-void calc_num_child_particles(int64_t h_start) {
-  int64_t i;
-  for (i=h_start; i<num_halos; i++) halos[i].num_child_particles = 0;
-  for (i=h_start; i<num_halos; i++) 
-    if (!halos[i].num_child_particles) _calc_num_child_particles(halos + i);
-}
-
-void calculate_corevel(struct halo *h, struct potential *po, int64_t total_p) {
-  //Assumes po is already sorted.
-  int64_t i, j;
-  double vel[3]={0};
-  int64_t core_max, velthresh, rvir_max;
-  double var[3]={0}, thisvar, bestvar=0;
-  double rvir_thresh = particle_rvir_dens*(4.0*M_PI/3.0);
-
-  for (j=total_p-1; j>=0; j--)
-    if (j*j > (po[j].r2*po[j].r2*po[j].r2)*(rvir_thresh*rvir_thresh)) break;
-  rvir_max = j;
-  for (j=total_p-1; j>=0; j--)
-    if (j*j > (po[j].r2*po[j].r2*po[j].r2)*(100*rvir_thresh*rvir_thresh)) break;
-  core_max = j;
-  
-  velthresh = pow(h->vrms / 5.0, 2.0);
-  if (core_max < velthresh) core_max = velthresh;
-
-  for (i=0; i<rvir_max; i++) {
-    for (j=0; j<3; j++) {
-      double delta = po[i].pos[j+3] - vel[j];
-      vel[j] += delta / ((double)(i+1));
-      var[j] += delta * (po[i].pos[j+3]-vel[j]);
-    }
-    thisvar = (var[0]+var[1]+var[2]);
-    if ((i < 10) || (thisvar < bestvar*(i-3)*i)) {
-      if (i > 3) bestvar = thisvar / (double)((i-3)*i);
-      else bestvar = 0;
-      if (i < core_max) {
-	h->n_core = i;
-	h->min_vel_err = bestvar;
-	for (j=0; j<3; j++) h->corevel[j] = vel[j];
-      }
-      for (j=0; j<3; j++) h->bulkvel[j] = vel[j];
-      h->min_bulkvel_err = bestvar;
-    }
-  }
-}
-
-
-void _calc_additional_halo_props(struct halo *h, int64_t total_p, int64_t bound)
-{
-  int64_t j, k, part_mdelta=0, num_part=0;
-  double dens_thresh = particle_thresh_dens*(4.0*M_PI/3.0);
-  double rvir_thresh = particle_rvir_dens*(4.0*M_PI/3.0);
-  double vmax_conv = PARTICLE_MASS/SCALE_NOW;
-  double r, circ_v, vmax=0, rvmax=0, energy = 0, L[3] = {0}, Jh, m=0, de;
-  double vrms[3]={0}, vavg[3]={0}, mdiff;
-  double cur_dens;
-
-  for (j=0; j<total_p; j++) {
-    if (bound && (po[j].pe < po[j].ke)) continue;
-    num_part++;
-    r = sqrt(po[j].r2);
-    if (r < FORCE_RES) r = FORCE_RES;
-    cur_dens = ((double)num_part/(r*r*r));
-    
-    if (cur_dens > dens_thresh) {
-      part_mdelta = num_part;
-      add_ang_mom(L, h->pos, po[j].pos);
-      de = po[j].ke - po[j].pe;
-      if (isfinite(de)) energy += de;
-      for (k=0; k<3; k++) { //Calculate Vrms
-	mdiff = po[j].pos[k+3]-vavg[k];
-	vavg[k] += mdiff/(double)num_part;
-	vrms[k] += mdiff*(po[j].pos[k+3]-vavg[k]);
-      }
-    }
-
-    if (cur_dens > rvir_thresh) {
-      circ_v = (double)num_part/r;
-      if (part_mdelta && circ_v > vmax) {
-	vmax = circ_v;
-	rvmax = r;
-      }
-    }
-  }
-
-  m = part_mdelta*PARTICLE_MASS;
-  if (!bound) h->m = m;
-  else h->mgrav = m;
-  for (k=0; k<3; k++) vrms[k] = (vrms[k] > 0) ? (vrms[k]/part_mdelta) : 0;
-  if ((bound && BOUND_PROPS) || !(bound || BOUND_PROPS)) {
-    h->vrms = sqrt(vrms[0] + vrms[1] + vrms[2]); 
-    h->vmax = VMAX_CONST*sqrt(vmax*vmax_conv);
-    h->rvmax = rvmax*1e3;
-    h->r = cbrt((3.0/(4.0*M_PI))*part_mdelta/particle_thresh_dens)*1e3;
-    h->rs = calc_scale_radius(h->m, h->r, h->vmax, h->rvmax, SCALE_NOW);
-    for (j=0; j<3; j++) h->J[j] = PARTICLE_MASS*SCALE_NOW*L[j];
-    h->energy = energy * PARTICLE_MASS * Gc / SCALE_NOW;
-    Jh = PARTICLE_MASS*SCALE_NOW*sqrt(L[0]*L[0] + L[1]*L[1] + L[2]*L[2]);
-    h->spin = (m>0) ? (Jh * sqrt(fabs(h->energy)) / (Gc*pow(m, 2.5))) : 0;
-  }
-}
-
-
-//Assumes center + velocity already calculated.
-void calc_additional_halo_props(struct halo *h) {
-  int64_t j, total_p;
-  double dens_thresh;
-
-  if (LIGHTCONE) lightcone_set_scale(h->pos);
-  dens_thresh = particle_thresh_dens*(4.0*M_PI/3.0);
-  if (h->num_p < 1) return;
-  total_p = //calc_particle_radii2(h, h, 0, 0);
-    calc_particle_radii(h, h, h->pos, 0, 0, 0);
-  if (BOUND_OUT_TO_HALO_EDGE) {
-    qsort(po, total_p, sizeof(struct potential), dist_compare);
-    for (j=total_p-1; j>=0; j--)
-      if (j*j / (po[j].r2*po[j].r2*po[j].r2) > dens_thresh*dens_thresh) break;
-    if (total_p) total_p = j+1;
-  }
-
-  if (total_p>1) compute_potential(po, total_p);
-  for (j=0; j<total_p; j++)
-    if (po[j].ke < 0) {
-      total_p--;
-      po[j] = po[total_p];
-      j--;
-    }
-  qsort(po, total_p, sizeof(struct potential), dist_compare);
-  calculate_corevel(h, po, total_p);
-  if (extra_info[h-halos].sub_of > -1)
-    compute_kinetic_energy(po, total_p, h->corevel, h->pos);
-  else
-    compute_kinetic_energy(po, total_p, h->bulkvel, h->pos);
-
-  _calc_additional_halo_props(h, total_p, 0);
-  _calc_additional_halo_props(h, total_p, 1);
-}
+#include "properties.c"
 
 void _find_subfofs_at_r(struct fof *f, float target_r) {
   int64_t i;
   init_particle_smallfofs(f->num_p, f->particles);
   for (i=0; i<f->num_p; i++) {
-    fast3tree_find_sphere(phasetree, res, f->particles[i].pos, target_r);
+    fast3tree_find_sphere_skip(phasetree, res, f->particles+i, target_r);
     link_particle_to_fof(f->particles + i, res->num_points, res->points);
   }
   build_fullfofs();
@@ -426,8 +197,10 @@ void _find_subfofs_better2(struct fof *f,  float thresh) {
   norm_sd(f, thresh);
   fast3tree_rebuild(phasetree, f->num_p, f->particles);
   if (num_test > f->num_p) num_test = f->num_p;
+  else srand(f->num_p);
+
   for (i=0; i<num_test; i++) {
-    if (f->num_p <= MAX_PARTICLES_TO_SAMPLE) j = i;
+    if (num_test == f->num_p) j = i;
     else { j = rand(); j<<=31; j+=rand(); j%=(f->num_p); }
     particle_r[i] = fast3tree_find_next_closest_distance(phasetree, res, 
 			     f->particles[j].pos);
@@ -474,23 +247,42 @@ int could_be_poisson_or_force_res(struct halo *h1, struct halo *h2, int64_t *is_
   return 0;
 }
 
-int64_t _find_biggest_parent(int64_t h_start, int use_temporal_info) {
-  int64_t i, max_i = h_start, max_p, num_m1, num_m2;
-  float m1 = -1;
-  for (i=h_start+1; i<num_halos; i++)
-    if (halos[i].r > halos[max_i].r)
-      max_i = i;
+int64_t _find_biggest_parent(int64_t h_start, int64_t use_temporal_info,
+			     int64_t growing) {
+  int64_t i, j, max_i = h_start, num_m1, num_m2;
+  float m1 = -1, max_vmax = 0, dx,ds, min_ds=0;
+  if (growing) {
+    assert(num_growing_halos);
+    max_i = growing_halos[0]-halos;
+  }
+  for (i=h_start; i<num_halos; i++) {
+    if (growing && !(halos[i].flags & GROWING_FLAG)) continue;
+    if (halos[i].vmax > halos[max_i].vmax) max_i = i;
+    if (halos[i].vmax == halos[max_i].vmax &&
+	halos[i].num_p > halos[max_i].num_p) max_i = i;
+  }
 
-  max_p = halos[max_i].num_p;
+  max_vmax = halos[max_i].vmax;
   if (use_temporal_info && TEMPORAL_HALO_FINDING && PARALLEL_IO) {
     for (i=h_start; i<num_halos; i++) {
       if (i==max_i) continue;
-      if (max_p*0.25 < halos[i].num_p) {
+      if (growing && !(halos[i].flags & GROWING_FLAG)) continue;
+      if (max_vmax*0.6 < halos[i].vmax) {
+	for (dx=0,j=0; j<3; j++) { ds=halos[i].pos[j]-halos[max_i].pos[j]; dx+=ds*ds; }
+	if (!min_ds || min_ds > dx) min_ds = dx;
+      }
+    }
+    min_ds = sqrt(min_ds)/3.0;
+
+    for (i=h_start; i<num_halos; i++) {
+      if (i==max_i) continue;
+      if (growing && !(halos[i].flags & GROWING_FLAG)) continue;
+      if (max_vmax*0.6 < halos[i].vmax) {
 	if (m1 < 0)
 	  m1 = find_previous_mass(halos+max_i, copies+halos[max_i].p_start,
-				  &num_m1);
+				  &num_m1, min_ds);
 	float m2 = find_previous_mass(halos+i, copies + halos[i].p_start,
-				      &num_m2);
+				      &num_m2, min_ds);
 	if (m1 && m2 && ((m2 > m1) || ((m2 == m1) && (num_m2 > num_m1)))) {
 	  max_i = i;
 	  m1 = m2;
@@ -503,13 +295,12 @@ int64_t _find_biggest_parent(int64_t h_start, int use_temporal_info) {
 }
 
 void _fix_parents(int64_t h_start) {
-  int64_t i, sub_of, num_m1, num_m2;
-  float m1, m2;
+  int64_t i, j, sub_of, num_m1, num_m2;
+  float m1, m2, dx, ds;
 
   for (i=h_start; i<num_halos; i++) {
     extra_info[i].next_cochild = extra_info[i].prev_cochild = 
       extra_info[i].child = -1;
-    //extra_info[i].prev_mass = 0;
     if (extra_info[i].sub_of == i) extra_info[i].sub_of = -1;
   }
 
@@ -517,10 +308,12 @@ void _fix_parents(int64_t h_start) {
     for (i=h_start; i<num_halos; i++) {
       sub_of = extra_info[i].sub_of;
       if (sub_of == i) sub_of = extra_info[i].sub_of = -1;
-      if (sub_of > -1 && halos[i].num_p > 0.25*halos[sub_of].num_p) {
-	m2 = find_previous_mass(halos+i, copies+halos[i].p_start, &num_m2);
+      if (sub_of > -1 && halos[i].vmax > 0.6*halos[sub_of].vmax) {
+	for (dx=0,j=0; j<3; j++) { ds=halos[i].pos[j]-halos[sub_of].pos[j]; dx+=ds*ds; }
+	dx = sqrt(dx)/3.0;
+	m2 = find_previous_mass(halos+i, copies+halos[i].p_start, &num_m2, dx);
 	m1 = find_previous_mass(halos+sub_of, copies+halos[sub_of].p_start,
-				&num_m1);
+				&num_m1, dx);
 	if (m1 && m2 && ((m2 > m1) || ((m2 == m1) && (num_m2 > num_m1)))) {
 	  extra_info[i].sub_of = extra_info[sub_of].sub_of;
 	  extra_info[sub_of].sub_of = i;
@@ -536,7 +329,7 @@ void _fix_parents(int64_t h_start) {
     extra_info[i].max_metric = 1e10;
     sub_of = extra_info[i].sub_of;
     if (sub_of > -1)
-      extra_info[i].max_metric = _calc_halo_dist(halos+i, halos + sub_of);      
+      extra_info[i].max_metric = _calc_halo_dist(halos+i, halos + sub_of);
     else continue;
     int64_t next_child = extra_info[sub_of].child;
     extra_info[i].next_cochild = next_child;
@@ -551,7 +344,7 @@ void output_level(int64_t p_start, int64_t p_end, int64_t h_start, int64_t level
 {
   int64_t i;
   char buffer[1024];
-  snprintf(buffer, 1024, "%s/levels", OUTBASE);
+  snprintf(buffer, 1024, "%s/levels_%f", OUTBASE, SCALE_NOW);
   FILE *output = check_fopen(buffer, "a");
   for (i=p_start; i<p_end; i++) {
     fprintf(output, "%f %f %f %f %f %f %"PRId64" %"PRId64" %"PRId64"\n",
@@ -561,7 +354,7 @@ void output_level(int64_t p_start, int64_t p_end, int64_t h_start, int64_t level
   }
   fclose(output);
 
-  snprintf(buffer, 1024, "%s/halos.levels", OUTBASE);
+  snprintf(buffer, 1024, "%s/halos_%f.levels", OUTBASE, SCALE_NOW);
   output = check_fopen(buffer, "a");
   for (i=h_start; i<num_halos; i++) {
     fprintf(output, "%f %f %f %f %f %f %"PRId64" %"PRId64" %f %f %f %f %"PRId64" %"PRId64" %"PRId64"\n",
@@ -574,13 +367,13 @@ void output_level(int64_t p_start, int64_t p_end, int64_t h_start, int64_t level
   fclose(output);
 }
 
-void _find_subs(struct fof *f, int level) {
+void _find_subs(struct fof *f, int64_t level) {
   int64_t f_start, f_end, h_start, i, j, f_index;
-  int64_t p_start, num_growing_halos = 0, max_i = 0, is_force_res;
+  int64_t p_start, max_i = 0, is_force_res;
 
   //Find subFOFs
   p_start = f->particles - copies;
-  f_index = f - subfofs;  
+  f_index = f - subfofs;
   _find_subfofs_better2(f, FOF_FRACTION);
   f_start = num_subfofs;
   copy_fullfofs(&subfofs, &num_subfofs, &num_alloced_subfofs);
@@ -604,7 +397,7 @@ void _find_subs(struct fof *f, int level) {
   }
 
   if (h_start == num_halos) add_new_halo(); //New seed halo
-  max_i = _find_biggest_parent(h_start, 1);
+  max_i = _find_biggest_parent(h_start, 1, 0);
 
   num_growing_halos=1;
   if (num_growing_halos >= num_alloc_gh) add_more_growing_halos();
@@ -640,7 +433,6 @@ void _find_subs(struct fof *f, int level) {
 	particle_halos[p_start + j] = h - halos;
 	while (extra_info[h-halos].sub_of > -1) {
 	  float max_metric = extra_info[h-halos].max_metric;
-	  if (max_metric < 3) max_metric = 3;
 	  if (calc_particle_dist(h, copies+p_start+j) > max_metric) {
 	    particle_halos[p_start + j] = extra_info[h-halos].sub_of;
 	    h = halos + extra_info[h-halos].sub_of;
@@ -651,17 +443,30 @@ void _find_subs(struct fof *f, int level) {
     }
   }
 
+  if (TEMPORAL_HALO_FINDING && PARALLEL_IO) {
+    for (i=h_start; i<num_halos; i++) {
+      if (extra_info[i].ph < 0 || extra_info[i].sub_of < 0) continue;
+      int64_t sub_of = extra_info[i].sub_of;
+      if (extra_info[i].ph == extra_info[sub_of].ph &&
+	  extra_info[i].max_metric < 1.5) {
+	extra_info[i].ph = -1;
+	for (j=halos[i].p_start; j<halos[i].num_p+halos[i].p_start; j++)
+	  particle_halos[j] = sub_of;
+	halos[i].num_p = halos[i].r = halos[i].vrms = 0;
+      }
+    }
+  }
   reassign_halo_particles(p_start, p_start + f->num_p);
   //calc_num_child_particles(h_start);
   for (i=0; i<num_growing_halos; i++) calc_basic_halo_props(growing_halos[i]);
-  max_i = _find_biggest_parent(h_start, 0);
+  max_i = _find_biggest_parent(h_start, 0, 1);
+  build_subtree(growing_halos, num_growing_halos);
   for (i=0; i<num_growing_halos; i++)
     extra_info[growing_halos[i]-halos].sub_of = 
       find_best_parent(growing_halos[i], halos+max_i) - halos;
   _fix_parents(h_start);
   calc_num_child_particles(h_start);
   for (i=0; i<num_growing_halos; i++) calc_basic_halo_props(growing_halos[i]);
-
   if (OUTPUT_LEVELS) output_level(p_start, p_start+f->num_p, h_start, level);
 
 
@@ -673,14 +478,15 @@ void _find_subs(struct fof *f, int level) {
     for (i=0; i<num_growing_halos; i++) {
       calc_basic_halo_props(growing_halos[i]);
       convert_and_sort_core_particles(growing_halos[i], 
-				      copies + growing_halos[i]->p_start);
+		copies + growing_halos[i]->p_start, 0, NULL);
     }
     build_subtree(growing_halos, num_growing_halos);
-    max_i = _find_biggest_parent(h_start, 0);
+    max_i = _find_biggest_parent(h_start, 0, 0);
     for (i=0; i<num_growing_halos; i++)
       extra_info[growing_halos[i]-halos].sub_of = 
 	find_best_parent(growing_halos[i], halos+max_i) - halos;
     _fix_parents(h_start);
+    calc_num_child_particles(h_start);
   }
 }
 
@@ -697,8 +503,10 @@ void find_subs(struct fof *f) {
   for (i=0; i<f->num_p; i++) copies[i].id = (f->particles-p)+i; //Hijack particle IDs
   cf = *f;
   cf.particles = copies;
+  num_copies = f->num_p;
 
   if (LIGHTCONE) lightcone_set_scale(f->particles->pos);
+
   num_subfofs = 0;
   _find_subs(&cf, 0);
   num_subfofs = 0;
@@ -736,6 +544,21 @@ void free_particle_copies(void) {
   po = check_realloc(po, 0, "Freeing potentials.");
   free_subtree();
 }
+
+void free_halos(void) {
+  check_realloc_s(halos, 0, 0);
+  num_halos = 0;
+  if (num_alloc_gh) {
+    check_realloc_s(growing_halos, 0, 0);
+    num_alloc_gh = 0;
+  }
+  if (num_alloced_halo_ids) {
+    check_realloc_s(halo_ids, 0, 0);
+    num_alloced_halo_ids = 0;
+  }
+  check_realloc_s(extra_info, 0, 0);
+}
+
 
 int64_t rad_partition(float *rad, int64_t left, int64_t right, int64_t pivot_ind) {
   float pivot = rad[pivot_ind], tmp;
@@ -797,6 +620,7 @@ void norm_sd(struct fof *f, float thresh) {
       corr[j][k]/=(double)f->num_p;
 
   calc_deviations(corr, &sig_x, &sig_v);
+  if (f->num_p == num_copies) sig_x *= INITIAL_METRIC_SCALING;
 
   if (!sig_x || !sig_v) return;
 

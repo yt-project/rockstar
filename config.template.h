@@ -7,8 +7,13 @@ string(FILE_FORMAT, "GADGET2");
 real(PARTICLE_MASS, 0); //Auto-generated or auto-read
 
 string(MASS_DEFINITION, "vir");
+string(MASS_DEFINITION2, "200b");
+string(MASS_DEFINITION3, "200c");
+string(MASS_DEFINITION4, "500c");
+string(MASS_DEFINITION5, "2500c");
 integer(MIN_HALO_OUTPUT_SIZE, 20);
 real(FORCE_RES, 0.003); //In Mpc/h
+real(FORCE_RES_PHYS_MAX, 0);
 
 real(SCALE_NOW, 1.0);
 real(h0, 0.7);
@@ -30,7 +35,9 @@ string(PARALLEL_IO_SERVER_ADDRESS, "auto");
 string(PARALLEL_IO_SERVER_PORT, "auto");
 integer(PARALLEL_IO_WRITER_PORT, 32001);
 string(PARALLEL_IO_SERVER_INTERFACE, "");
+integer(PARALLEL_IO_CATALOGS, 0);
 string(RUN_ON_SUCCESS, "");
+string(RUN_PARALLEL_ON_SUCCESS, "");
 string(LOAD_BALANCE_SCRIPT, "");
 
 string(INBASE, ".");
@@ -56,6 +63,7 @@ integer(DELETE_BINARY_OUTPUT_AFTER_FINISHED, 0);
 integer(FULL_PARTICLE_CHUNKS, 0);
 string(BGC2_SNAPNAMES, "");
 
+integer(SHAPE_ITERATIONS, 10);
 integer(BOUND_PROPS, 1);
 integer(BOUND_OUT_TO_HALO_EDGE, 0);
 integer(DO_MERGER_TREE_ONLY, 0);
@@ -76,19 +84,19 @@ integer(GADGET_VARIANT, 0);
 
 real(FOF_FRACTION, 0.7);
 real(FOF_LINKING_LENGTH, 0.28);
+real(INITIAL_METRIC_SCALING, 1);
 real(INCLUDE_HOST_POTENTIAL_RATIO, 0.3);
-real(DOUBLE_COUNT_SUBHALO_MASS_RATIO, 1.0);
 integer(TEMPORAL_HALO_FINDING, 1);
 integer(MIN_HALO_PARTICLES, 10);
 real(UNBOUND_THRESHOLD, 0.5);
 integer(ALT_NFW_METRIC, 0);
+integer(EXTRA_PROFILING, 1);
 
 integer(TOTAL_PARTICLES, 8589934592);
 real(BOX_SIZE, 250); //In Mpc/h
-integer(OUTPUT_HMAD, 0);
-integer(OUTPUT_PARTICLES, 0);
 integer(OUTPUT_LEVELS, 0);
 real3(DUMP_PARTICLES, "0 0 0");
 
+string(ROCKSTAR_CONFIG_FILENAME, "");
 real(AVG_PARTICLE_SPACING, 0); //Auto-generated
 integer(SINGLE_SNAP, 0);

@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <inttypes.h>
+#include <string.h>
+#include <sys/resource.h>
 #include "config_vars.h"
 #include "check_syscalls.h"
 #include "io/read_config.h"
@@ -20,11 +22,31 @@ void setup_config(void) {
     PERIODIC = 0;
     TEMPORAL_HALO_FINDING = 0;
   }
+
+  if (IGNORE_PARTICLE_IDS)
+    TEMPORAL_HALO_FINDING = 0;
+
+  if (!FORCE_RES_PHYS_MAX)
+    FORCE_RES_PHYS_MAX = FORCE_RES;
+
+  struct rlimit rlp;
+  getrlimit(RLIMIT_NOFILE, &rlp);
+  rlp.rlim_cur = rlp.rlim_max;
+  setrlimit(RLIMIT_NOFILE, &rlp);
+  getrlimit(RLIMIT_CORE, &rlp);
+  rlp.rlim_cur = rlp.rlim_max;
+  setrlimit(RLIMIT_CORE, &rlp);
+  if (NUM_WRITERS < FORK_PROCESSORS_PER_MACHINE)
+    NUM_WRITERS = FORK_PROCESSORS_PER_MACHINE;
+
+  if (STARTING_SNAP >= NUM_SNAPS) {
+    fprintf(stderr, "[Warning] No work will be done unless NUM_SNAPS > STARTING_SNAP in config file!\n");
+  }
 }
 
 void do_config(char *filename) {
   struct configfile c = {0};
-  if (filename)
+  if (filename && strlen(filename))
     load_config(&c, filename);
 
 #define string(a,b) a = config_to_string(&c,#a,b)
@@ -36,8 +58,13 @@ void do_config(char *filename) {
 #undef real
 #undef real3
 #undef integer
+  syntax_check(&c, "[Warning]");
   setup_config();
   free_config(c);
+  if (filename && strlen(filename)) {
+    free(ROCKSTAR_CONFIG_FILENAME);
+    ROCKSTAR_CONFIG_FILENAME = strdup(filename);
+  }
 }
 
 void output_config(char *filename) {

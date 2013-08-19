@@ -90,6 +90,8 @@ int main(void) {
   printf("%f\n", strtofloat("-0.02", NULL));
   printf("%f\n", strtofloat("-0.02e10foo", NULL));
   printf("%e\n", strtofloat("-0.02e-10", NULL));
+  printf("%e\n", strtofloat("nAn", NULL));
+  printf("%e\n", strtodouble("-inf", NULL));
   printf("%.10e\n", strtof("-0.123456789", NULL));
   printf("%.10e\n", strtofloat("-0.123456789", NULL));
   printf("%d\n", strtoint32("5002342", NULL));
@@ -105,4 +107,5 @@ int main(void) {
 
   return 0;
 }
+
 */

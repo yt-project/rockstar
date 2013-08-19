@@ -1,6 +1,5 @@
 #ifndef PARTICLE_H
 #define PARTICLE_H
-
 #include <stdint.h>
 
 struct particle {
@@ -8,4 +7,4 @@ struct particle {
   float pos[6];
 };
 
-#endif
+#endif /*PARTICLE_H*/

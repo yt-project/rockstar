@@ -76,7 +76,7 @@ enum tipsy_DataTypeCode {
 };
 
 void load_particles_tipsy(char *filename, struct particle **p, int64_t *num_p);
-int load_ids_tipsy(char *filename, struct tipsy_dump header, int **iords);
+int load_ids_tipsy(char *filename, struct tipsy_dump header, int **iords, int *num_iords);
 int tipsy_xdr_header(XDR *pxdrs,struct tipsy_dump *ph);
 int tipsy_xdr_gas(XDR *pxdrs,struct tipsy_gas_particle *ph);
 int tipsy_xdr_dark(XDR *pxdrs,struct tipsy_dark_particle *ph);

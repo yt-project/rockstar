@@ -14,8 +14,9 @@ prof:
 	@make reg EXTRA_FLAGS="$(PROFFLAGS)"
 
 reg:
-	$(CC) $(CFLAGS) load_bgc2.c ../check_syscalls.c ../io/io_util.c ../litehash.c -o load_bgc2  $(EXTRA_FLAGS)
-	$(CC) $(CFLAGS) load_full_particles.c ../check_syscalls.c  ../litehash.c ../io/stringparse.c -o load_full_particles  $(EXTRA_FLAGS)
+	$(CC) $(CFLAGS) bgc2_to_ascii_particles.c load_bgc2.c ../check_syscalls.c ../io/io_util.c -o bgc2_to_ascii_particles  $(EXTRA_FLAGS)
+	$(CC) -DTEST_LOADFP $(CFLAGS) load_full_particles.c ../check_syscalls.c   ../io/stringparse.c ../config_vars.c -o load_full_particles  $(EXTRA_FLAGS)
+	$(CC) -DCALC_POTENTIALS $(CFLAGS) calc_potentials.c load_full_particles.c ../check_syscalls.c  ../io/stringparse.c ../config_vars.c ../potential.c -o calc_potentials  $(EXTRA_FLAGS)
 
 clean:
 	rm -f *~ 

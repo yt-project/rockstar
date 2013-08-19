@@ -37,12 +37,12 @@ void gadget2_detect_filetype(FILE *input, char *filename) {
 void gadget2_read_stride(FILE *input, int64_t p_start, int64_t nelems, int64_t stride, int64_t width, struct particle *p, int64_t offset, int64_t skip, int64_t skip2, char *filename)
 {
   int64_t to_read = nelems, i, n;
-  void *buffer = NULL;
+  char *buffer = NULL;
   uint32_t readsize;
 
   if (SWAP_ENDIANNESS) fread_swap(&readsize, sizeof(uint32_t), 1, input);
   else check_fread(&readsize, sizeof(uint32_t), 1, input);
-  if ((stride == 1) && (((void *)p)+offset == (void *)&(p[0].id))) { 
+  if ((stride == 1) && (((char *)p)+offset == (char *)&(p[0].id))) { 
     //reading IDs
     if (readsize == (uint32_t)((nelems+skip+skip2)*4))
       GADGET_ID_BYTES = width = 4;
@@ -55,7 +55,7 @@ void gadget2_read_stride(FILE *input, int64_t p_start, int64_t nelems, int64_t s
   }
 
   //support 8-byte positions / velocities
-  if ((stride == 3)) { 
+  if (stride == 3) { 
     //reading IDs
     if (readsize == (uint32_t)(stride*(nelems+skip+skip2)*4)) width = 4;
     else if (readsize == (uint32_t)(stride*(nelems+skip+skip2)*8))
@@ -67,8 +67,8 @@ void gadget2_read_stride(FILE *input, int64_t p_start, int64_t nelems, int64_t s
   }
 
   check_fseeko(input, (skip*width*stride), SEEK_CUR);
-  buffer = (void *)check_realloc(buffer, GADGET_BUFFER_SIZE*stride*width,
-				 "Allocating read buffer.");
+  buffer = check_realloc(buffer, GADGET_BUFFER_SIZE*stride*width,
+			 "Allocating read buffer.");
   while (nelems > 0) {
     to_read = nelems;
     if (to_read > GADGET_BUFFER_SIZE) to_read = GADGET_BUFFER_SIZE;
@@ -81,11 +81,11 @@ void gadget2_read_stride(FILE *input, int64_t p_start, int64_t nelems, int64_t s
       exit(1);
     }
     if ((stride != 3) || (width != 8)) {
-      for (i=0; i<n; i++) memcpy((void *)&(p[p_start+i]) + offset,
+      for (i=0; i<n; i++) memcpy(((char *)&(p[p_start+i])) + offset,
 				 buffer+(i*stride*width), stride*width);
     } else {
       for (i=0; i<n; i++) {
-	float *dest = (float *)((void *)&(p[p_start+i]) + offset);
+	float *dest = (float *)((char *)&(p[p_start+i]) + offset);
 	for (int64_t j=0; j<3; j++)
 	  dest[j] = (float)(*((double *)(buffer + (i*stride*width) + j*width)));
       }
@@ -189,17 +189,18 @@ void load_particles_gadget2(char *filename, struct particle **p, int64_t *num_p)
 
   gadget_variant_block("POS");
   gadget2_read_stride(input, *num_p, halo_particles, 3, sizeof(float), 
-	 *p, (void *)&(p[0][0].pos[0])-(void*)(p[0]), skip, skip2, filename);
+	 *p, (char *)&(p[0][0].pos[0])-(char*)(p[0]), skip, skip2, filename);
 
   gadget_variant_block("VEL");
   gadget2_read_stride(input, *num_p, halo_particles, 3, sizeof(float), 
-	 *p, (void *)&(p[0][0].pos[3])-(void*)(p[0]), skip, skip2, filename);
+	 *p, (char *)&(p[0][0].pos[3])-(char*)(p[0]), skip, skip2, filename);
 
   gadget_variant_block("ID");
   gadget2_read_stride(input, *num_p, halo_particles, 1, GADGET_ID_BYTES, 
-	 *p, (void *)&(p[0][0].id)-(void*)(p[0]), skip, skip2, filename);
+	 *p, (char *)&(p[0][0].id)-(char*)(p[0]), skip, skip2, filename);
 
   gadget2_rescale_particles(*p, *num_p, halo_particles);
 
   *num_p += halo_particles;
+  fclose(input);
 }

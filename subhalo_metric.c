@@ -60,7 +60,7 @@ float _calc_halo_dist(struct halo *h1, struct halo *h2) {
 }
 
 float calc_halo_dist(struct halo *h1, struct halo *h2) {
-  if (h2->r >= h1->r) return 1e20;
+  if (h2->r > h1->r*0.99999) return 1e20;
   return (_calc_halo_dist(h1, h2));
 }
 
@@ -135,7 +135,7 @@ int64_t node_could_be_better_parent(struct tree3_node *n, struct halo *h,
   float r = n->min[3]*INV_RADIUS_WEIGHTING;
   float max_r = r*best_metric;
   int64_t i;
-  if (r <= h->r) return 0;
+  if (r < h->r*1.00001) return 0;
   for (i=0; i<3; i++)
     if ((h->pos[i]+max_r < n->min[i]) || (h->pos[i]-max_r > n->max[i]))
       return 0;

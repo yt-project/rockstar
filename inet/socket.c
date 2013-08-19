@@ -53,15 +53,11 @@ struct addrinfo *default_addrinfo(char *host, char *port) {
   exit(1);
 }
 
-int select_fd(int fd, int write, int timeout_secs) {
-  fd_set fset;
+void random_sleep(int timeout_secs) {
   struct timeval timeout;
-  FD_ZERO(&fset);
-  timeout.tv_sec = timeout_secs;
+  timeout.tv_sec = rand()%(timeout_secs+1);
   timeout.tv_usec = rand()%1000000;
-  if (fd>-1) FD_SET(fd, &fset);
-  if (write) return select(fd+1, NULL, &fset, NULL, &timeout);
-  return select(fd+1, NULL, &fset, NULL, &timeout);
+  select(0, NULL, NULL, NULL, &timeout);
 }
 
 int _connect_to_addr(char *host, char *port) {
@@ -77,9 +73,10 @@ int _connect_to_addr(char *host, char *port) {
 
   for (i=0; i<RETRIES; i++) {
     if (!connect(s, res->ai_addr, res->ai_addrlen)) break;
-    snprintf(buffer, 200, "[Warning] Connection attempt %d failed: ", i+1);
+    if (errno==EINTR) { i--; continue; }
+    snprintf(buffer, 200, "[Warning] Connection attempt %d to %s:%s failed: ", i+1, host, port);
     perror(buffer);
-    select_fd(-1, 0, 0);
+    random_sleep(10);
   }
   if (i==RETRIES) {
     fprintf(stderr, "[Error] Failed to connect to %s:%s! (Err: %s;\n",
@@ -95,17 +92,9 @@ int _listen_at_addr(char *host, char *port) {
   int s, i, set=1;
   struct addrinfo *res = default_addrinfo(host, port);
   s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-  if (s < 0) {
-    /*fprintf(stderr, "Couldn't open socket for address %s:%s!  (Err: %s)\n",
-	    host, port, strerror(errno));
-    exit(1);*/
-    return -1;
-  }
+  if (s < 0) return -1;
 
   if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(int))<0) {
-    /*fprintf(stderr, "Couldn't set socket on %s:%s to reuse port!  (Err: %s)\n",
-      host, port, strerror(errno));
-      exit(1); */
     close(s);
     return -1;
   }
@@ -117,9 +106,6 @@ int _listen_at_addr(char *host, char *port) {
     for (i=0; i<RETRIES; i++) 
       if (!listen(s, SOMAXCONN)) break;
   if (i==RETRIES) {
-    /*fprintf(stderr, "Failed to accept connections at %s:%s! (Err: %s)\n",
-	    host, port, strerror(errno));
-    exit(1);*/
     close(s);
     return -1;
   }
@@ -128,10 +114,16 @@ int _listen_at_addr(char *host, char *port) {
 }
 
 int _accept_connection(int s, char **address, int *port) {
-  struct sockaddr_storage peer;
+  union sockaddr_types
+  {
+    struct sockaddr sockaddr;
+    struct sockaddr_in sockaddr_in;
+    struct sockaddr_in6 sockaddr_in6;
+    struct sockaddr_storage sockaddr_stor;
+  } peer;
   socklen_t length = sizeof(peer);
   int a, size = (INET6_ADDRSTRLEN+1)*sizeof(char);
-  a = accept(s, (struct sockaddr *)(&peer), &length);
+  while ((a = accept(s, &(peer.sockaddr), &length)) < 0 && errno==EINTR);
   if (a<0) {
     perror("[Error] Connection accept failed");
     assert(0);
@@ -142,14 +134,12 @@ int _accept_connection(int s, char **address, int *port) {
     *address = (char *)malloc(size);
   }
 
-  if (peer.ss_family == AF_INET) {
-    struct sockaddr_in *s = (struct sockaddr_in *)&peer;
-    if (port) *port = ntohs(s->sin_port);
-    if (address && *address) inet_ntop(AF_INET, &s->sin_addr, *address, size);
+  if (peer.sockaddr_stor.ss_family == AF_INET) {
+    if (port) *port = ntohs(peer.sockaddr_in.sin_port);
+    if (address && *address) inet_ntop(AF_INET, &(peer.sockaddr_in.sin_addr), *address, size);
   } else { // Assume AF_INET6
-    struct sockaddr_in6 *s = (struct sockaddr_in6 *)&peer;
-    if (port) *port = ntohs(s->sin6_port);
-    if (address && *address) inet_ntop(AF_INET6, &s->sin6_addr, *address, size);
+    if (port) *port = ntohs(peer.sockaddr_in6.sin6_port);
+    if (address && *address) inet_ntop(AF_INET6, &peer.sockaddr_in6.sin6_addr, *address, size);
   }
   return a;
 }
@@ -157,7 +147,9 @@ int _accept_connection(int s, char **address, int *port) {
 int64_t _send_to_socket(int s, void *data, int64_t length) {
   int64_t sent = 0, n = 0;
   while (sent < length) {
-    n = send(s, data+sent, length-sent, 0);
+    errno = 0;
+    n = send(s, ((char *)data)+sent, length-sent, 0);
+    if (errno == EINTR) continue;
     if (n<0) {
       io_error_cb(io_error_data);
       return -1;
@@ -170,7 +162,9 @@ int64_t _send_to_socket(int s, void *data, int64_t length) {
 int64_t _recv_from_socket(int s, void *data, int64_t length) {
   int64_t received = 0, n = 0;
   while (received < length) {
-    n = recv(s, data+received, length-received, 0);
+    errno = 0;
+    n = recv(s, ((char *)data)+received, length-received, 0);
+    if (errno == EINTR) continue;
     if (n<=0) {
       io_error_cb(io_error_data);
       return -1;
@@ -200,18 +194,11 @@ void *_recv_msg(int s, void *data, int64_t *length, int64_t offset) {
     assert(data != NULL);
     *length = offset+incoming;
   }
-  _recv_from_socket(s, data+offset, incoming);
+  _recv_from_socket(s, ((char *)data)+offset, incoming);
   return data;
 }
 
 void *_recv_msg_nolength(int s, void *data) {
   int64_t length = 0;
   return(_recv_msg(s, data, &length, 0));
-}
-
-int get_recvbuf_size(int s) {
-  socklen_t optlen = sizeof(int);
-  int recvbuf;
-  getsockopt(s, SOL_SOCKET, SO_RCVBUF, &recvbuf, &optlen);
-  return recvbuf;
 }

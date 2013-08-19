@@ -8,14 +8,16 @@
 #define GROWING_FLAG 1
 #define DELETE_FLAG 2
 #define POSSIBLE_SWAP_FLAG 4
+#define TAGGED_FLAG 8
 
 extern struct halo *halos;
 extern int64_t num_halos;
-struct extra_halo_info *extra_info;
+extern struct extra_halo_info *extra_info;
 
 void find_subs(struct fof *f);
 void calc_mass_definition(void);
 void free_particle_copies(void);
+void free_halos(void);
 
 //Internal functions
 void add_new_halo(void);

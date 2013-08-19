@@ -1,3 +1,48 @@
+v0.99.9 RC1 (3/13/2013):
+*) Fixed Rs_Klypin to use bound mass instead of unbound mass for halos when BOUND_PROPS = 1.  (Thanks to Yao-Yuan Mao for finding!).
+*) More efficient memory allocation in tree construction.
+*) New config parameter (RUN_PARALLEL_ON_SUCCESS) which will launch a program from every analysis process after each snapshot is analyzed.  Rockstar will wait for successful completion before continuing.
+*) Fixed segfault in BGC2 output code, as well as a regression that made BGC2 output use twice as much memory as necessary.
+*) Added the INITIAL_METRIC_SCALING parameter to adjust the initial weight given to the velocity-space dispersion.  (Relevant for Chris Moody only).
+
+v0.99.8: (Not publicly released)
+*) Added FORCE_RES_PHYS_MAX configuration parameter to set the maximum physical force resolution---mainly useful for analyzing simulations at a>>1.
+
+v0.99.7: (Not publicly released)
+*) Static code analysis now regular part of release cycle.  (Thanks to both Coverity and to the Clang project).  Two memory leaks (in the TIPSY and BGC2 IO) are now fixed. 
+*) Fixed crash due to floating-point roundoff errors in building FOF groups across periodic boundaries.
+*) Added network profiling.  This will help improve processor utilization in future versions.
+
+v0.99.6: (Not publicly released).
+*) Fixed an issue with the lightcone origin being shifted unnecessarily (thanks to Michael Busha for finding!).
+*) Code will now automatically increase NUM_WRITERS to FORK_PROCESSORS_PER_MACHINE if the latter is larger.  (Thanks to Marius Cautun for catching).
+*) Parallel output to the same file has been shown to cause problems with many filesystems; catalogs are now written in serial again. (Thanks to Michael Busha for finding).
+*) Unknown configuration variables are now reported to help catch spelling errors.
+*) Updated the merger tree config file script to support scale factors >9.99. (Thanks to Matt Becker for catching!).
+*) Improved memory balance over v0.99.5.
+*) Corrected TIPSY velocity unit conversion.
+
+v0.99.5: (Not publicly released.)
+*) Many new halo parameters calculated: Shape, Central Position/Velocity Offsets, Bullock spin parameter, KE/PE (T/|U|).
+*) Updated particle assignment algorithm to use method based on Vmax instead of Mvir.
+*) Updated concentration calculation which is now based directly on the mass profile.  The Klypin method for calculating the scale radius is available as a separate column.
+*) Updated the Peebles spin parameter calculation to use only the potential from particles within the halo radius.
+*) Multiple mass outputs are now available in a single run.  (Defaults are Mvir, M200b, M200c, and M500c).
+*) New load-balancing scheme which gets rid of the requirement for overlap regions between processors.  This can substantially reduce memory usage for box sizes < 500 Mpc on a side.
+*) Performance improvements in many parts of the code, resulting in a 1.5-2x speedup for many applications.
+*) Consistency improvements in temporal tracking code.
+*) Improved handling of SIGINTs.
+*) Patch from Mike Warren to improve support for running on > 1024 processors (using poll() instead of select()).
+*) Special thanks to Mike Warren for contributing many patches and bugfixes during the development of this release.
+*) Fixed a bug with halos in major mergers accidentally being assigned some of their host halo's particles.
+
+v0.99.1: (Not publicly released.)
+*) Updated velocity calculation to use all particles within 0.1 Rvir.
+*) Updated scale factor -> time conversion code to be more accurate as well as work for scale factors > 1.
+*) Changed temporal tracking code to track innermost 10% of particles in massive halos, instead of having a fixed maximum at 10k particles.
+*) Fixed handling of "\r" in config files.
+*) Made Rockstar ignore SIGINTs from MPI.  (Thanks to Matt Turk for the patch).
+
 v0.99 (3/19/2012):
 *) Updated the unbinding calculation to use physical velocities instead of peculiar velocities.
 *) Improved network layer now supports transparent auto-healing in case of connection failures and better rejection of non-Rockstar connections.

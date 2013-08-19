@@ -4,14 +4,17 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <math.h>
+#include <string.h>
 #include "../check_syscalls.h"
 #include "stringparse.h"
 #include "../particle.h"
+#include "../config_vars.h"
 
 void gzip_file(char *filename) {
   char buffer[1024];
   snprintf(buffer, 1024, "gzip -f \"%s\"", filename);
-  system(buffer);
+  if (system(buffer) != 0)
+    fprintf(stderr, "[Warning] Gzip of file %s failed.\n", filename);
 }
 
 
@@ -27,11 +30,14 @@ void load_particles(char *filename, struct particle **p, int64_t *num_p) {
   enum parsetype types[NUM_INPUTS];
   void *data[NUM_INPUTS] = {&(d.pos[0]), &(d.pos[1]), &(d.pos[2]), &(d.pos[3]), &(d.pos[4]), &(d.pos[5]), &(d.id)};
 
-  for (n=0; n<NUM_INPUTS; n++) types[n] = stypes[n];
+  for (n=0; n<NUM_INPUTS; n++) types[n] = (enum parsetype)stypes[n];
   
   input = check_fopen(filename, "r");
   while (fgets(buffer, 1024, input)) {
-    if (buffer[0] == '#') continue;
+    if (buffer[0] == '#') {
+      if (!strncmp(buffer, "#a = ", 5)) SCALE_NOW = atof(buffer+5);
+      continue;
+    }
     n = stringparse(buffer, data, (enum parsetype *)types, NUM_INPUTS);
 
     if (n < NUM_INPUTS) continue;

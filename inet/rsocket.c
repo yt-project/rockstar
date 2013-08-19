@@ -2,9 +2,13 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/select.h>
+#include <sys/poll.h>
 #include <sys/signal.h>
 #include <unistd.h>
+#include <assert.h>
+#include <errno.h>
 #include "socket.h"
 #include "rsocket.h"
 
@@ -23,10 +27,11 @@
 #define RPACKET_CONFIRM_SENT_FLAG 4
 
 struct rsocket *rsockets = NULL;
-int64_t num_rsockets = 0;
+int64_t num_rsockets = 0, poll_alloced = 0;
+struct pollfd *rsocket_poll = NULL;
 
 void rsocket_fatal(char *reason) {
-  fprintf(stderr, "[Error] [Network] %s\n", reason);
+  fprintf(stderr, "[Error] [Network] (PID: %d) %s\n", getpid(), reason);
   exit(1);
 }
 
@@ -60,71 +65,86 @@ int64_t check_rsocket_tag(int64_t s) {
   return (rsockets[s].flags & SELECTED_FLAG);
 }
 
-int64_t select_rsocket(int select_type, double timeout) {
-  int64_t i, max_fd=0, max_i=0, res;
-  fd_set fds, *rfds=NULL, *wfds=NULL, *efds = NULL;
-  struct timeval *tval = NULL, tv;
+int64_t select_rsocket(int poll_type, double timeout) {
+   int i, j, poll_events = 0, max_fd=0, max_i=0, nfds=0, res;
 
-  //Check for new accepted sockets first
-  if (select_type & RSOCKET_READ) {
-    for (i=0; i<num_rsockets; i++) {
-      if ((rsockets[i].flags & NEW_FLAG) && !(rsockets[i].flags & UNUSED_FLAG)
-	  && !(rsockets[rsockets[i].server_id].flags & UNUSED_FLAG) &&
-	  (rsockets[rsockets[i].server_id].flags & SELECTED_FLAG) &&
-	  (rsockets[rsockets[i].server_id].flags & SERVER_FLAG)) {
-	clear_rsocket_tags();
-	rsockets[rsockets[i].server_id].flags |= SELECTED_FLAG;
-	return(rsockets[i].server_id+1);
-      }
-    }
-  }
+   if (poll_alloced != num_rsockets) {
+     poll_alloced = num_rsockets;
+     rsocket_poll = socket_check_realloc(rsocket_poll, sizeof(struct pollfd)*(num_rsockets+1),
+					 "Allocating poll fds.");
+   }
+   if (poll_type & RSOCKET_READ) poll_events |= POLLIN;
+   if (poll_type & RSOCKET_WRITE) poll_events |= POLLOUT;
+   if (poll_type & RSOCKET_ERROR) poll_events |= POLLERR;
+ 
+   //Check for new accepted sockets first
+   if (poll_type & RSOCKET_READ) {
+     for (i=0; i<num_rsockets; i++) {
+       if ((rsockets[i].flags & NEW_FLAG) && !(rsockets[i].flags & UNUSED_FLAG)
+	   && !(rsockets[rsockets[i].server_id].flags & UNUSED_FLAG) &&
+	   (rsockets[rsockets[i].server_id].flags & SELECTED_FLAG) &&
+	   (rsockets[rsockets[i].server_id].flags & SERVER_FLAG)) {
+	 clear_rsocket_tags();
+	 rsockets[rsockets[i].server_id].flags |= SELECTED_FLAG;
+	 return(rsockets[i].server_id+1);
+       }
+     }
+   }   
+ 
+   //Flag server sockets to check for reaccepted connections:
+   if (poll_type & RSOCKET_READ)
+     for (i=0; i<num_rsockets; i++)
+       if ((rsockets[i].flags & SELECTED_FLAG) && 
+	   !(rsockets[i].flags & (UNUSED_FLAG)) &&
+	   (rsockets[i].flags & RECEIVER_FLAG) && 
+	   !(rsockets[rsockets[i].server_id].flags & UNUSED_FLAG))
+	 rsockets[rsockets[i].server_id].flags |= META_SELECTED_FLAG;
 
-  FD_ZERO(&fds);
-  for (i=0; i<num_rsockets; i++) {
-      if ((rsockets[i].flags & SELECTED_FLAG) && !(rsockets[i].flags & UNUSED_FLAG)) {
-	if (rsockets[i].fd > max_fd) max_fd = rsockets[i].fd;
-	FD_SET(rsockets[i].fd, &fds);
-	if ((rsockets[i].flags & RECEIVER_FLAG) && 
-	    !(rsockets[rsockets[i].server_id].flags & UNUSED_FLAG) &&
-	    (select_type & RSOCKET_READ)) {
-	  FD_SET(rsockets[rsockets[i].server_id].fd, &fds);
-	  rsockets[rsockets[i].server_id].flags |= META_SELECTED_FLAG;
-	}
-      }
-  }
-  if (select_type & RSOCKET_READ) rfds = &fds;
-  if (select_type & RSOCKET_WRITE) wfds = &fds;
-  if (select_type & RSOCKET_ERROR) efds = &fds;
-  if (timeout) {
-    tval = &tv;
-    tv.tv_sec = timeout;
-    tv.tv_usec = (timeout-tv.tv_sec)*1.0e6;
-  }
-  res = select(max_fd+1, rfds, wfds, efds, tval);
-  if (res < 0) {
-    perror("[Warning] Socket select() failed: ");
-    clear_rsocket_tags();
-    return 0;
-  }
+   for (i=0; i<num_rsockets; i++) {
+     if ((rsockets[i].flags & (SELECTED_FLAG|META_SELECTED_FLAG)) && 
+	 !(rsockets[i].flags & (UNUSED_FLAG))) {
+       if (rsockets[i].fd > max_fd) max_fd = rsockets[i].fd;
+       rsocket_poll[nfds].fd = rsockets[i].fd;
+       rsocket_poll[nfds].events = poll_events;
+       nfds++;
+     }
+   }
 
-  for (i=0; i<num_rsockets; i++) {
-    if (FD_ISSET(rsockets[i].fd, &fds)) {
-      if ((rsockets[i].flags & SERVER_FLAG) &&
-	  !(rsockets[i].flags & UNUSED_FLAG)) {
-	rsocket_accept_connection(i, NULL, NULL, 0, 1);
-	clear_rsocket_tags();
-	return 0;
-      } else {
-	rsockets[i].flags |= SELECTED_FLAG;
-	max_i = i;
-      }
-    }
-    else
-      rsockets[i].flags -= (rsockets[i].flags & SELECTED_FLAG);
-  }
-  return(max_i+1);
+   while ((res = poll(rsocket_poll, nfds, (timeout > 0.0) ? timeout*1000 : -1)) < 0
+	  && (errno == EINTR));
+   if (res < 0) {
+     perror("[Warning] Socket poll() failed");
+     clear_rsocket_tags();
+     return 0;
+   }
+ 
+   for (j=0; j<nfds; j++)
+     if (rsocket_poll[j].revents & (POLLERR|POLLNVAL))
+       fprintf(stderr, "[Warning] error event mask %0x on fd %d\n", 
+	       rsocket_poll[j].revents, rsocket_poll[j].fd);
+
+   for (j=0; j<nfds; j++) {
+     i = rsocket_from_fd(rsocket_poll[j].fd);
+     assert(i>=0 && i<num_rsockets);
+     if (rsocket_poll[j].revents & poll_events) {
+       if ((rsockets[i].flags & SERVER_FLAG) &&
+	   !(rsockets[i].flags & UNUSED_FLAG)) {
+	 rsocket_accept_connection(i, NULL, NULL, 0, 1);
+	 clear_rsocket_tags();
+	 return 0;
+       } else {
+	 if (rsocket_poll[j].revents & POLLHUP) //Closed:
+	   if (recv(rsockets[i].fd, &res, 1, MSG_PEEK)<=0) //Test for data
+	     continue; //Skip if no data ready to read
+	 rsockets[i].flags |= SELECTED_FLAG;
+	 if (max_i < i) max_i = i;
+       }
+     } else {
+       rsockets[i].flags -= (rsockets[i].flags & SELECTED_FLAG);
+     }
+   }
+   return(max_i+1);
 }
-
 
 uint64_t gen_magic(void) {
   uint64_t magic = 0;
@@ -183,6 +203,7 @@ int64_t add_rsocket(struct rsocket s) {
     return u;
   }
   rsockets = socket_check_realloc(rsockets, sizeof(struct rsocket)*(num_rsockets+1), "Adding new rsocket.");
+  s.id = num_rsockets;
   rsockets[num_rsockets] = s;
   num_rsockets++;
   return (s.id);
@@ -220,7 +241,10 @@ int64_t listen_at_addr(char *host, char *port) {
   ns.flags = SERVER_FLAG;
   ns.address = strdup(host);
   ns.port = strdup(port);
-  return add_rsocket(ns);
+  int64_t ret = add_rsocket(ns);
+  assert(ns.address == rsockets[ret].address &&
+	 ns.port == rsockets[ret].port);
+  return ret;
 }
 
 int64_t rsocket_accept_connection(int64_t s, char **address, int *port, uint64_t desired_magic, int64_t justone) {
@@ -365,7 +389,7 @@ int64_t recv_from_rsocket(int64_t s, void *data, int64_t length, int64_t offset,
 	 ==sizeof(struct rpacket_header))) {
       //Check for duplicate sequence:
       if (rp.seq < rs->rseq && rs->rseq < (INT64_MAX - 10)) {
-	fprintf(stderr, "Ignoring duplicate sequence %"PRId64" (seqnow: %"PRId64")\n",
+	fprintf(stderr, "[Warning] Ignoring duplicate sequence %"PRId64" (seqnow: %"PRId64")\n",
 		rp.seq, rs->rseq);
 	while (lcount < rp.length) {
 	  to_read = rp.length - lcount;
@@ -392,15 +416,21 @@ int64_t recv_from_rsocket(int64_t s, void *data, int64_t length, int64_t offset,
 	}
 	else if ((length != rp.length+offset)) {
 	  fprintf(stderr, "Expected receive length (%"PRId64") != actual receive length (%"PRId64")\n", length, rp.length+offset);
+	  if (length < 100) {
+	    fprintf(stderr, "Actual data received: ");
+	    for (int64_t i=0; i<length; i++) fprintf(stderr, "%c", ((char *)data)[i]);
+	    fprintf(stderr, "\n");
+	    assert(0);
+	  }
 	  exit(1);
 	}
-	if (_recv_from_socket(rs->fd, data+offset, rp.length)==rp.length) {
+	if (_recv_from_socket(rs->fd, ((char *)data)+offset, rp.length)==rp.length) {
 	   if (!(rp.flags & RPACKET_NO_CONFIRM_FLAG))
 	     _send_to_socket(rs->fd, &confirm, sizeof(int64_t));
 	   rs->last_data = data;
 #ifdef DEBUG_RSOCKET
 	   fprintf(stderr, "[Received] %"PRId64" bytes from socket %"PRId64", seq %"PRId64", seqnow %"PRId64". ", rp.length, s, rp.seq, rs->rseq);
-	   if (length < 100) fwrite(data+offset, 1, rp.length, stderr);
+	   if (length < 100) fwrite(((char *)data)+offset, 1, rp.length, stderr);
 	   fprintf(stderr, "\n");
 #endif /*DEBUG_RSOCKET*/
 	   rs->rseq = rp.seq+1;

@@ -34,7 +34,7 @@ void art_detect_endianness(FILE *input, char *filename) {
 void art_swap_4byte_endianness(void *data, int64_t length) {
   int64_t i;
   assert(!(length % 4));
-  for (i=0; i<length; i+=4) swap_endian_4byte((int8_t*)(data+i));
+  for (i=0; i<length; i+=4) swap_endian_4byte((int8_t*)(((char*)data)+i));
 }
 
 void art_process_particles(struct particle *p, int64_t num_p, struct art_particle *ap, int64_t num_read, double NGRIDC)

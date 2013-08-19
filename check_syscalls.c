@@ -3,16 +3,33 @@
 #include <inttypes.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/errno.h>
 #include <unistd.h>
 #include <signal.h>
+#include "inthash.h"
 
 //#define DEBUG_IO
+
 
 void system_error(char *errmsg) {
   fprintf(stderr, "[Error] %s\n", errmsg);
   perror("[Error] Reason");
   exit(1);
 }
+
+pid_t check_waitpid(pid_t pid) {
+  int stat_loc;
+  pid_t res;
+  do {
+    res = waitpid(pid, &stat_loc, 0);
+  } while ((res < 0) && (errno == EINTR));
+
+  if (res < 0) system_error("Waiting for child process failed.");
+  return res;
+}
+
 
 FILE *check_fopen(char *filename, char *mode) {
   FILE *res = fopen(filename, mode);
@@ -47,6 +64,7 @@ FILE *check_popen(char *command, char *mode) {
 
 FILE *check_rw_socket(char *command, pid_t *pid) {
   int sockets[2], status;
+  pid_t wres;
   FILE *res;
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets)<0)
     system_error("Failed to create socket pair!");
@@ -62,7 +80,10 @@ FILE *check_rw_socket(char *command, pid_t *pid) {
   close(sockets[1]);
   res = fdopen(sockets[0], "r+");
   if (!res) system_error("Failed to convert socket to stream!");
-  if (waitpid(*pid, &status, WNOHANG)) {
+  do {
+    wres = waitpid(*pid, &status, WNOHANG);
+  } while ((wres < 0) && (errno == EINTR));
+  if (wres < 0) {
     fprintf(stderr, "[Error] Failed to start child process: %s\n", command);
     exit(1);
   }
@@ -73,19 +94,32 @@ FILE *check_rw_socket(char *command, pid_t *pid) {
   return res;
 }
 
+void check_lseek(int fd, off_t offset, int whence) {
+  int64_t res = lseek(fd, offset, whence);
+  if (res<0) {
+    fprintf(stderr, "[Error] Lseek error in fileno %d: ", fd);
+    perror(NULL);
+    exit(1);
+  }
+}
+
 void rw_socket_close(FILE *res, pid_t pid) {
   fclose(res);
   kill(pid, 9);
-  waitpid(pid, NULL, 0);
+  check_waitpid(pid);
 }
 
 void *check_realloc(void *ptr, size_t size, char *reason) {
-  void *res = realloc(ptr, size);
-  if ((res == NULL) && (size > 0)) {
-    fprintf(stderr, "[Error] Failed to allocate memory (%s)!\n", reason);
-    exit(1);
+  if (size > 0) {
+    void *res = realloc(ptr, size);
+    if (res == NULL) {
+      fprintf(stderr, "[Error] Failed to allocate memory (%s)!\n", reason);
+      exit(1);
+    }
+    return res;
   }
-  return res;
+  if (ptr != NULL) free(ptr);
+  return(NULL);
 }
 
 
@@ -125,7 +159,7 @@ size_t check_fread(void *ptr, size_t size, size_t nitems, FILE *stream) {
 
 char *check_fgets(char *ptr, size_t size, FILE *stream) {
   char *res = fgets(ptr, size, stream);
-  if (res <= 0) _io_err(0, size, 1, stream);
+  if (!res) _io_err(0, size, 1, stream);
   return res;
 }
 
@@ -138,4 +172,34 @@ size_t check_fwrite(void *ptr, size_t size, size_t nitems, FILE *stream) {
     nwritten += res;
   }
   return nwritten;
+}
+
+void *check_mmap_file(char *filename, char mode, int64_t *length) {
+  FILE *tf;
+  int flags = MAP_SHARED, prot = PROT_READ;
+  struct stat ts;
+  if (mode == 'r') tf = check_fopen(filename, "rb");
+  else if (mode == 'w') {
+    tf = check_fopen(filename, "r+b");
+    prot |= PROT_WRITE;
+  }
+  else {
+    fprintf(stderr, "[Error] Invalid mode %c passed to check_mmap_file!\n", mode);
+    exit(1);
+  }
+  int fd = fileno(tf);
+  if (fstat(fd, &ts)!=0) {
+    fprintf(stderr, "[Error] Fstat failure on file %s!\n", filename);
+    perror("[Error] Reason");
+    exit(1);
+  }
+  void *res = mmap(NULL, ts.st_size, prot, flags, fd, 0);
+  if (res == MAP_FAILED) {
+    fprintf(stderr, "[Error] Mmap failure on file %s, mode %c!\n", filename, mode);
+    perror("[Error] Reason");
+    exit(1);
+  }
+  fclose(tf);
+  if (length) *length = ts.st_size;
+  return res;
 }

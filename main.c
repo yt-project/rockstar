@@ -1,5 +1,5 @@
 /* The Rockstar Halo Finder.
-   Copyright (C) 2011,2012  Peter Behroozi
+   Copyright (C) 2011-2013  Peter Behroozi
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ int main(int argc, char **argv)
   srand(1);
   if (argc < 2) {
     printf("Rockstar Halo Finder, Version %s\n", ROCKSTAR_VERSION);
-    printf("(C) 2011,2012 Peter Behroozi.  See the LICENSE file for redistribution details.\n");
+    printf("(C) 2011-2013 Peter Behroozi.  See the LICENSE file for redistribution details.\n");
     printf("Usage: %s [-c config] [-s snapnum] [-b blocknum]\n", argv[0]);
     exit(1);
   }
@@ -55,11 +55,11 @@ int main(int argc, char **argv)
     for (i=1; i<argc; i++) {
       if (!strcmp("-c", argv[i])) i++;
       else if (!strcmp("-s", argv[i])) {
-	snap = argv[i+i] ? atoi(argv[i+1]) : 0;
+	snap = argv[i+1] ? atoi(argv[i+1]) : 0;
 	i++;
       }
       else if (!strcmp("-b", argv[i])) {
-	block = argv[i+i] ? atoi(argv[i+1]) : 0;
+	block = argv[i+1] ? atoi(argv[i+1]) : 0;
 	i++;
       }
       else read_particles(argv[i]);
@@ -78,13 +78,13 @@ int main(int argc, char **argv)
       }
     }
 
+    output_config(NULL);
     rockstar(NULL, 0);
-    if (OUTPUT_HMAD) output_hmad(argv[3]);
-    if (OUTPUT_PARTICLES) output_particles(argv[3]);
     if (block==NUM_BLOCKS) block = 0;
     if (block < 0) block = 0;
     if (snap < 0) snap = 0;
-    output_and_free_halos(0,snap,block,NULL);
+    output_halos(0,snap,block,NULL);
+    free_halos();
   }
   else {
     if (snap > -1) {
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
     }
     if ((NUM_WRITERS != 1) && PERIODIC) check_num_writers();
     s = server();
-    if (!s) client();
+    if (!s) client(-1);
   }
   return 0;
 }
