@@ -38,6 +38,9 @@ void find_parents(int64_t ngroups) {
   halo_order = check_realloc(halo_order, sizeof(int64_t)*ngroups,
 			     "Allocating halo order.");
   halo_tree = fast3tree_init(ngroups, GROUP_LIST);
+#ifndef NO_PERIODIC_BOUNDARIES
+  _fast3tree_set_minmax(halo_tree, 0, BOX_SIZE);
+#endif /*NO_PERIODIC_BOUNDARIES*/
   for (i=0; i<ngroups; i++) {
     GROUP_LIST[i].parent = -1;
     halo_order[i] = i;

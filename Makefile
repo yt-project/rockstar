@@ -1,10 +1,10 @@
 CFLAGS=-m64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_BSD_SOURCE -D_POSIX_SOURCE -D_POSIX_C_SOURCE=200809L -D_SVID_SOURCE -D_DARWIN_C_SOURCE -Wall -fno-math-errno -fPIC
 LDFLAGS=-shared
 OFLAGS = -lm -O3 -std=c99
-DEBUGFLAGS = -lm -g -O3 -std=c99 -Dinline=
+DEBUGFLAGS = -lm -g -O0 -std=c99 -Dinline= 
 PROFFLAGS = -lm -g -pg -O2 -std=c99
 CC = gcc
-CFILES = rockstar.c check_syscalls.c fof.c groupies.c subhalo_metric.c potential.c nfw.c jacobi.c fun_times.c universe_time.c distance.c config_vars.c config.c bounds.c litehash.c io/read_config.c client.c server.c merger.c inet/socket.c inet/rsocket.c inet/address.c io/meta_io.c io/io_internal.c io/io_ascii.c io/stringparse.c io/io_gadget.c io/io_generic.c io/io_art.c io/io_tipsy.c io/io_bgc2.c io/io_util.c
+CFILES = rockstar.c check_syscalls.c fof.c groupies.c subhalo_metric.c potential.c nfw.c jacobi.c fun_times.c interleaving.c universe_time.c distance.c config_vars.c config.c bounds.c inthash.c io/read_config.c client.c server.c merger.c inet/socket.c inet/rsocket.c inet/address.c io/meta_io.c io/io_internal.c io/io_ascii.c io/stringparse.c io/io_gadget.c io/io_generic.c io/io_art.c io/io_tipsy.c io/io_bgc2.c io/io_util.c
 DIST_FLAGS =
 
 all:
@@ -19,7 +19,7 @@ prof:
 .REMAKE:
 
 dist: .REMAKE
-	cd ../ ; perl -ne 'print "$$1\n" if (/VERSION\s*\"([^\"]+)/)' Rockstar/version.h > Rockstar/VERSION; tar -czvf rockstar.tar.gz Rockstar/Makefile Rockstar/*.[ch] Rockstar/examples/Makefile Rockstar/[^st]*/*.[ch] Rockstar/quickstart.cfg Rockstar/parallel.cfg Rockstar/scripts/*.pbs Rockstar/scripts/*.cfg Rockstar/scripts/*.pl Rockstar/SOURCE_LAYOUT Rockstar/README Rockstar/LICENSE Rockstar/VERSION Rockstar/ACKNOWLEDGMENTS Rockstar/CHANGELOG; mv rockstar.tar.gz Rockstar
+	cd ../ ; perl -ne 'print "$$1\n" if (/VERSION\s*\"([^\"]+)/)' Rockstar/version.h > Rockstar/VERSION; tar -czvf rockstar.tar.gz Rockstar/Makefile Rockstar/*.[ch] Rockstar/examples/Makefile Rockstar/[^sto]*/*.[ch] Rockstar/quickstart.cfg Rockstar/parallel.cfg Rockstar/scripts/*.pbs Rockstar/scripts/*.cfg Rockstar/scripts/*.pl Rockstar/SOURCE_LAYOUT Rockstar/README Rockstar/LICENSE Rockstar/VERSION Rockstar/ACKNOWLEDGMENTS Rockstar/CHANGELOG; mv rockstar.tar.gz Rockstar
 
 versiondist:
 	$(MAKE) dist DIST_FLAGS="$(DIST_FLAGS)"
@@ -38,7 +38,7 @@ bgc2:
 	$(CC) $(CFLAGS) io/extra_bgc2.c util/bgc2_to_ascii.c $(CFILES) -o util/bgc2_to_ascii  $(OFLAGS)
 
 parents:
-	$(CC) util/find_parents.c io/stringparse.c check_syscalls.c  -o util/find_parents $(CFLAGS) $(EXTRA_FLAGS)
+	$(CC) $(CFLAGS) util/find_parents.c io/stringparse.c check_syscalls.c  -o util/find_parents $(OFLAGS)
 
 substats:
 	$(CC) $(CFLAGS) util/subhalo_stats.c $(CFILES) -o util/subhalo_stats  $(OFLAGS)

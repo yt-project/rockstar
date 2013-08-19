@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "inthash.h"
 #include "check_syscalls.h"
 #include "halo.h"
 #include "io/meta_io.h"
@@ -8,10 +9,7 @@
 struct halo *halos1 = NULL, *halos2 = NULL;
 struct binary_output_header head1, head2;
 int64_t *part1 = NULL, *part2 = NULL;
-struct particle_halo {
-  int64_t pid, hid;
-};
-struct particle_halo *part2_halos = NULL;
+struct inthash *part2_halos = NULL;
 int64_t *part1_halos = NULL;
 
 void clear_merger_tree(void) {
@@ -22,20 +20,15 @@ void clear_merger_tree(void) {
   part1 = check_realloc(part1, 0, "Freeing particle IDs.");
   part2 = check_realloc(part2, 0, "Freeing particle IDs.");
   part1_halos = check_realloc(part1_halos, 0, "Freeing ID assignments.");
-  part2_halos = check_realloc(part2_halos, 0, "Freeing ID assignments.");
+  if (part2_halos) {
+    free_inthash(part2_halos);
+    part2_halos = NULL;
+  }
 }
 
 void init_descendants(void) {
   int64_t i;
   for (i=0; i<head1.num_halos; i++) halos1[i].desc = -1;
-}
-
-int compare_partid(const void *a, const void *b) {
-  int64_t c = ((struct particle_halo *)a)->pid;
-  int64_t d = ((struct particle_halo *)b)->pid;
-  if (c < d) return -1;
-  if (c > d) return 1;
-  return 0;
 }
 
 int compare_int64(const void *a, const void *b) {
@@ -48,28 +41,19 @@ int compare_int64(const void *a, const void *b) {
 
 void connect_particle_ids_to_halo_ids(void) {
   int64_t i,j;
+  part2_halos = new_inthash();
   if (!head2.num_particles || !head2.num_halos) return;
-  part2_halos = check_realloc(part2_halos,
-			      sizeof(struct particle_halo)*head2.num_particles, 
-			      "Allocating room for ID assignments.");
+  ih_prealloc(part2_halos, head2.num_particles);
   for (i=0; i<head2.num_halos; i++) {
-    for (j=halos2[i].p_start; j<halos2[i].p_start+halos2[i].num_p; j++) {
-      part2_halos[j].pid = part2[j];
-      part2_halos[j].hid = halos2[i].id;
-    }
+    for (j=halos2[i].p_start; j<halos2[i].p_start+halos2[i].num_p; j++)
+      ih_setint64(part2_halos, part2[j], halos2[i].id);
   }
-
-  qsort(part2_halos, head2.num_particles, sizeof(struct particle_halo),
-	compare_partid);
   part2 = check_realloc(part2, 0, "Freeing particle IDs.");  
 }
 
 void calculate_descendants(void) {
-  int64_t i, j, k;
+  int64_t i, j, k, p2;
   int64_t max_p = 0, desc, desc_maxp, last_desc;
-  struct particle_halo pdesired;
-  struct particle_halo *p2;
-
   if (!halos2) return;
 
   for (i=0; i<head1.num_halos; i++) {
@@ -82,11 +66,9 @@ void calculate_descendants(void) {
     k=0;
     desc = desc_maxp = -1;
     for (j=halos1[i].p_start; j<halos1[i].p_start+halos1[i].num_p; j++) {
-      pdesired.pid = part1[j];
-      p2 = bsearch(&pdesired, part2_halos, head2.num_particles, 
-		   sizeof(struct particle_halo), compare_partid);
-      if (p2) {
-	part1_halos[k] = p2->hid;
+      p2 = ih_getint64(part2_halos, part1[j]);
+      if (p2 != IH_INVALID) {
+	part1_halos[k] = p2;
 	k++;
       }
     }

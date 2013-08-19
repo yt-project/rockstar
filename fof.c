@@ -14,6 +14,7 @@ int64_t num_fofs=0, num_alloced_fofs = 0,
 struct particle *root_p = 0;
 int64_t *particle_smallfofs = NULL;
 int64_t num_particles = 0, num_alloced_particles = 0;
+int64_t num_boundary_fofs = 0;
 
 void init_particle_smallfofs(int64_t num_p, struct particle *particles) {
   int64_t i;
@@ -26,7 +27,7 @@ void init_particle_smallfofs(int64_t num_p, struct particle *particles) {
   for (i=0; i<num_p; i++) particle_smallfofs[i] = -1;
   root_p = particles;
   num_particles = num_p;
-  num_fofs = num_smallfofs = 0;
+  num_boundary_fofs = num_fofs = num_smallfofs = 0;
 }
 
 int64_t add_new_smallfof(void) {
@@ -66,6 +67,25 @@ void merge_smallfofs(struct smallfof *f1, struct smallfof *f2) {
     f2 = r;
   }
 }
+
+int64_t tag_boundary_particle(struct particle *p) {
+#define SMALLFOF_OF(a) particle_smallfofs[(a) - root_p]
+  int64_t f = SMALLFOF_OF(p);
+  if (f<0) {
+    SMALLFOF_OF(p) = add_new_smallfof();
+    num_boundary_fofs++;
+    return num_boundary_fofs-1;
+  }
+  _collapse_smallfof(smallfofs + f);
+  if (smallfofs[f].root >= num_smallfofs - num_boundary_fofs)
+    return (smallfofs[f].root - (num_smallfofs - num_boundary_fofs));
+  int64_t new_fof = add_new_smallfof();
+  smallfofs[smallfofs[f].root].root = new_fof;
+  num_boundary_fofs++;
+  return (num_boundary_fofs-1);
+#undef SMALLFOF_OF
+}
+
 
 void link_particle_to_fof(struct particle *p, int64_t n, struct particle **links) {
   int64_t i;
@@ -147,38 +167,41 @@ void partition_sort_particles(int64_t min, int64_t max,
 }
 
 void build_fullfofs(void) {
-  int64_t i, sf, last_sf=-1, f=-1;
+  int64_t i, sf=-1, last_sf=-1, f=-1;
   collapse_smallfofs();
-  num_smallfofs = 0;
   partition_sort_particles(0, num_particles, root_p, particle_smallfofs);
   for (i=0; i<num_particles; i++) {
     if (particle_smallfofs[i] < 0) continue;
     sf = particle_smallfofs[i];
     if (sf != last_sf) {
       if (f>-1) { fofs[f].num_p = (root_p + i) - fofs[f].particles; }
-      if ((f < 0) || (fofs[f].num_p >= MIN_HALO_PARTICLES)) f=add_new_fof();
+      if ((f < 0) || (fofs[f].num_p >= MIN_HALO_PARTICLES) ||
+	  last_sf >= num_smallfofs-num_boundary_fofs) f=add_new_fof();
       fofs[f].particles = root_p + i;
       last_sf = sf;
     }
   }
   if (f>-1) { 
     fofs[f].num_p = (root_p + i) - fofs[f].particles;
-    if (fofs[f].num_p < MIN_HALO_PARTICLES) num_fofs--;
+    if (fofs[f].num_p < MIN_HALO_PARTICLES && 
+	(sf < num_smallfofs-num_boundary_fofs)) num_fofs--;
   }
+  num_smallfofs = 0;
 }
 
-struct fof *return_fullfofs(int64_t *num_f) {
-  struct fof *all_fofs;
+struct fof *return_fullfofs(int64_t *num_f, int64_t *num_bf) {
+  struct fof *f_all_fofs;
   num_smallfofs = num_alloced_smallfofs = 0;
   smallfofs = check_realloc(smallfofs, 0, "Freeing SmallFOFs.");
   particle_smallfofs = check_realloc(particle_smallfofs, 0,
 				     "Freeing particle smallfofs.");
   num_alloced_particles = 0;
-  all_fofs = fofs;
+  f_all_fofs = fofs;
   *num_f = num_fofs;
+  *num_bf = num_boundary_fofs;
   fofs = NULL;
-  num_alloced_fofs = num_fofs = 0;
-  return all_fofs;
+  num_boundary_fofs = num_alloced_fofs = num_fofs = 0;
+  return f_all_fofs;
 }
 
 
@@ -195,5 +218,5 @@ void copy_fullfofs(struct fof **base, int64_t *num_f, int64_t *num_alloced_f)
   //Make sure to delete last fof, if necessary.
   if (num_fofs < num_alloced_fofs) num_fofs++;
   memset(fofs, 0, sizeof(struct fof)*num_fofs);
-  num_fofs = 0;
+  num_boundary_fofs = num_fofs = 0;
 }

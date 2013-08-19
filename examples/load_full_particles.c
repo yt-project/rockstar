@@ -10,27 +10,18 @@
 #include "../io/stringparse.h"
 #include "../halo.h"
 #include "../particle.h"
+#include "../config_vars.h"
 #include "load_full_particles.h"
 
-struct full_particle {
-  float pos[6];
-  //Particle ID, Unique assigned internal halo id, 
-  // Internal Halo ID, External Halo ID
-  int64_t id, a_hid, hid, ehid;
-};
 
-void load_full_particles(char *filename, struct halo **h, int64_t *num_h, 
-			 struct full_particle **p, int64_t *num_p);
-
-
+#ifndef TEST_LOADFP
+extern struct halo *h; //(Must call list of halos "h"!)
+#else
 struct halo *h = NULL;
 int64_t *parents = NULL;
 struct full_particle *p = NULL;
 float bounds[6] = {0};
 int64_t num_h=0, num_p=0;
-double Om, Ol, h0;
-double PARTICLE_MASS;
-double SCALE_NOW;
 
 int main(int argc, char **argv) {
   int64_t i;
@@ -42,7 +33,7 @@ int main(int argc, char **argv) {
 
   for (i=1; i<argc; i++) {
     num_h = num_p = 0;
-    load_full_particles(argv[i], &h, &num_h, &p, &num_p);
+    load_full_particles(argv[i], &h, &num_h, &p, &num_p, bounds);
     printf("Scale factor: %f\n", SCALE_NOW);
     printf("Bounds: (%f, %f, %f) - (%f, %f, %f)\n", bounds[0], bounds[1], 
 	   bounds[2], bounds[3], bounds[4], bounds[5]);
@@ -55,6 +46,7 @@ int main(int argc, char **argv) {
   }
   return 0;
 }
+#endif /* TEST_LOADFP */
 
 #define FAST3TREE_TYPE struct halo
 #define IGNORE_INVALID_IDS
@@ -71,7 +63,7 @@ int int_id_compare(const void *a, const void *b) {
 }
 
 void load_full_particles(char *filename, struct halo **h, int64_t *num_h, 
-			 struct full_particle **p, int64_t *num_p) {
+			 struct full_particle **p, int64_t *num_p, float *bnds) {
   FILE *input;
   int64_t i;
   char buffer[1024];
@@ -108,7 +100,7 @@ void load_full_particles(char *filename, struct halo **h, int64_t *num_h,
       PARTICLE_MASS = atof(buffer+16);
     if (!strncmp(buffer, "#Bounds: ", 9))
       sscanf(buffer, "#Bounds: (%f, %f, %f) - (%f, %f, %f)",
-	     bounds, bounds+1, bounds+2, bounds+3, bounds+4, bounds+5);
+	     bnds, bnds+1, bnds+2, bnds+3, bnds+4, bnds+5);
   }
 
   //Halos

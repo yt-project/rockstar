@@ -8,7 +8,9 @@
 
 #define POTENTIAL_ERR_TOL 1.0
 #define POTENTIAL_USE_BH 1
+#ifndef POTENTIAL_HALT_AFTER_BOUND
 #define POTENTIAL_HALT_AFTER_BOUND 0
+#endif /* !def POTENTIAL_HALT_AFTER_BOUND */
 
 inline double _distance2(float *p1, float *p2) {
   double dx, r2=0;
@@ -16,12 +18,18 @@ inline double _distance2(float *p1, float *p2) {
   return (r2);
 }
 
+inline double inv_distance(float *p1, float *p2) {
+  double r = sqrt(_distance2(p1,p2));
+  if (r < FORCE_RES) r = FORCE_RES;
+  return (1.0/r);
+}
+
 void _compute_direct_potential(struct potential *po, int64_t num_po) {
   int64_t i, j;
   double dpo;
   for (i=0; i<num_po; i++)
     for (j=i+1; j<num_po; j++) {
-      dpo = PARTICLE_MASS/sqrt(_distance2(po[i].pos, po[j].pos));
+      dpo = PARTICLE_MASS*inv_distance(po[i].pos, po[j].pos);
       po[i].pe += dpo;
       po[j].pe += dpo;
     }
@@ -32,7 +40,7 @@ void _compute_indirect_potential(struct potential *po, int64_t num_po,
   int64_t i, j;
   for (i=0; i<num_po; i++)
     for (j=0; j<num_po2; j++)
-      po[i].pe += PARTICLE_MASS/sqrt(_distance2(po[i].pos, po2[j].pos));
+      po[i].pe += PARTICLE_MASS*inv_distance(po[i].pos, po2[j].pos);
 }
 
 #define POINTS_PER_LEAF 10

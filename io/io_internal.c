@@ -61,8 +61,7 @@ void load_particles_internal(char *filename, struct particle **part, int64_t *nu
   assert(bh.particle_type == PARTICLE_TYPE_FULL);
   assert(bh.num_particles >= 0);
   read_binary_header_config(&bh);
-  *part = check_realloc(*part, sizeof(struct particle)*bh.num_particles,
-			"Allocating particles");
+  check_realloc_s(*part, sizeof(struct particle), bh.num_particles);
   check_fread(*part, sizeof(struct particle), bh.num_particles, input);
   *num_part = bh.num_particles;
   fclose(input);
@@ -77,7 +76,7 @@ inline void _clear_buffer(FILE *output) {
 inline void _append_to_buffer(void *src, int64_t size, FILE *output) {
   if (buffered + size > OUTPUT_BUFFER_SIZE) _clear_buffer(output);
   if (size > OUTPUT_BUFFER_SIZE) { check_fwrite(src, size, 1, output); return; }
-  memcpy(output_buffer+buffered, src, size);
+  memcpy(((char *)output_buffer)+buffered, src, size);
   buffered+=size;
 }
 
@@ -89,9 +88,7 @@ void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds
   FILE *output;
   struct binary_output_header bheader;
 
-  if (!output_buffer)
-    output_buffer = check_realloc(output_buffer, OUTPUT_BUFFER_SIZE,
-				  "Allocating output buffer");
+  if (!output_buffer) check_realloc_s(output_buffer, 1, OUTPUT_BUFFER_SIZE);
 
   get_output_filename(buffer, 1024, snap, chunk, "bin");
   output = check_fopen(buffer, "wb");
@@ -154,22 +151,21 @@ void load_binary_header(int64_t snap, int64_t chunk,
 
 void load_binary_halos(int64_t snap, int64_t chunk, 
       struct binary_output_header *bheader, struct halo **halos,
-		       int64_t **part_ids)
+		       int64_t **part_ids, int64_t coalesced)
 {
   char buffer[1024];
   FILE *input;
   int64_t i, j;
 
-  get_output_filename(buffer, 1024, snap, chunk, "bin");
+  if (!coalesced) get_output_filename(buffer, 1024, snap, chunk, "bin");
+  else get_output_filename(buffer, 1024, snap, chunk, "coalesced.bin");
   input = check_fopen(buffer, "rb");
   check_fread(bheader, sizeof(struct binary_output_header), 1, input);
   assert(bheader->magic == ROCKSTAR_MAGIC);
   assert(bheader->num_halos >= 0);
   assert(bheader->num_particles >= 0);
-  *halos = check_realloc(*halos, sizeof(struct halo)*bheader->num_halos,
-			 "Allocating room for halos.");
-  *part_ids = check_realloc(*part_ids, sizeof(int64_t)*bheader->num_particles,
-			    "Allocating room for particle IDs.");
+  check_realloc_s(*halos, sizeof(struct halo), bheader->num_halos);
+  check_realloc_s(*part_ids, sizeof(int64_t), bheader->num_particles);
   i = check_fread(*halos, sizeof(struct halo), bheader->num_halos, input);
   j = check_fread(*part_ids, sizeof(int64_t), bheader->num_particles, input);
   if (i!=bheader->num_halos || j!=bheader->num_particles) {

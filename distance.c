@@ -43,8 +43,8 @@ double redshift(double a) {  return (1.0/a-1.0); }
 double scale_factor(double z) {  return (1.0/(1.0+z)); }
 
 double comoving_distance(double z) {
-  float f = z*Z_BINS;
-  int bin = f;
+  double f = z*Z_BINS;
+  int bin = (int)f;
   if (z<0) return 0;
   if (bin>(TOTAL_BINS-2)) return (_Dc[TOTAL_BINS-1]);
   f -= bin;

@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <float.h>
+#include <string.h>
 
 #ifdef CONV_64BIT
 
@@ -84,6 +85,16 @@ static inline FLOAT_TYPE FLOAT_CONV_NAME (const char *cur_pos, char **end_pos)
     else if (c == '-') {
       if (!seenexp || seenexpsign  || ((pos - periodendpos)>1)) break;
       seenexpsign = -1;
+    }
+    else if ((c=='n' || c=='N') && !strncasecmp(pos,"nan",3) && 
+	     (pos[3]==0 || pos[3]==' ' || pos[3]=='\t' || pos[3]=='\n')) {
+      if (end_pos) *end_pos = ((char *)pos)+3;
+      return 0;
+    }
+    else if ((c=='i' || c=='I') && !strncasecmp(pos,"inf",3) &&
+	     (pos[3]==0 || pos[3]==' ' || pos[3]=='\t' || pos[3]=='\n')) {
+      if (end_pos) *end_pos = ((char *)pos)+3;
+      return copysign(FLOAT_MAX,sign);
     }
     else break;
   }

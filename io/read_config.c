@@ -28,11 +28,35 @@ void add_to_string_array(char ***array, char *string, size_t length, int num_ent
   (*elem)[length] = 0;
 }
 
+void add_to_int_array(int **array, int num_entries, int val) {
+  if (!(num_entries % 10)) {
+    *array = (int *) realloc(*array, sizeof(int)*(num_entries+10));
+    if (!(*array)) {
+      fprintf(stderr, "[Error] Couldn't allocate memory for syntax checks!\n");
+      exit(1);
+    }
+  }
+  (*array)[num_entries]=val;
+}
+
 inline static char *_config_to_string(struct configfile *c, char *key) {
   int i;
   for (i=0; i<c->num_entries; i++)
-    if (strcmp(key,c->keys[i])==0) return c->values[i];
+    if (strcmp(key,c->keys[i])==0) {
+      c->touched[i] = 1;
+      return c->values[i];
+    }
   return 0;
+}
+
+void syntax_check(struct configfile *c, char *prefix) {
+  int i;
+  char *space = prefix ? " " : "";
+  for (i=0; i<c->num_entries; i++) {
+    if (!(c->touched[i]) && strlen(c->keys[i])) {
+      fprintf(stderr, "%s%sConfig variable \"%s\" not understood; please verify spelling.\n", (prefix ? prefix : ""), space, c->keys[i]);
+    }
+  }
 }
 
 char *config_to_string(struct configfile *c, char *key, char *def_val) {
@@ -40,6 +64,7 @@ char *config_to_string(struct configfile *c, char *key, char *def_val) {
   if (!val) {
     add_to_string_array(&(c->keys), key, strlen(key), c->num_entries);
     add_to_string_array(&(c->values), def_val, strlen(def_val), c->num_entries);
+    add_to_int_array(&(c->touched), c->num_entries, 1);
     c->num_entries++;
     return strdup(def_val);
   }
@@ -53,6 +78,7 @@ double config_to_real(struct configfile *c, char *key, double def_val) {
     sprintf(buffer, "%.10e", def_val);
     add_to_string_array(&(c->keys), key, strlen(key), c->num_entries);
     add_to_string_array(&(c->values), buffer, strlen(buffer), c->num_entries);
+    add_to_int_array(&(c->touched), c->num_entries, 1);
     c->num_entries++;
     return def_val;
   }
@@ -65,6 +91,7 @@ void config_to_real3(struct configfile *c, char *key, double *res, char *def_val
   if (!val) {
     add_to_string_array(&(c->keys), key, strlen(key), c->num_entries);
     add_to_string_array(&(c->values), def_val, strlen(def_val), c->num_entries);
+    add_to_int_array(&(c->touched), c->num_entries, 1);
     c->num_entries++;
     val = def_val;
   }
@@ -90,7 +117,7 @@ inline static void trim(char **a, char **b) {
     (*a)+=1;
   }
   while ((*a) <= (*b)) {
-    if (!(((**b)==' ') || ((**b)=='\t') || ((**b)=='\n') || ((**b)=='\0'))) {
+    if (!(((**b)==' ') || ((**b)=='\t') || ((**b)=='\n') || ((**b)=='\r') || ((**b)=='\0'))) {
       if (((**b)=='\'') || ((**b)=='\"'))
 	(*b)-=1;
       break;
@@ -128,6 +155,7 @@ void load_config(struct configfile *c, char *filename) {
 
     add_to_string_array(&(c->keys), key_start, key_end-key_start+1, c->num_entries);
     add_to_string_array(&(c->values), val_start, val_end-val_start+1, c->num_entries);
+    add_to_int_array(&(c->touched), c->num_entries, 0);
     c->num_entries++;
   }
   fclose(input);

@@ -19,26 +19,6 @@ void load_bgc2(char *filename, struct bgc2_header *hdr,
 	       PARTICLE_DATA_PV **pdata, int64_t *num_parts);
 
 
-int main(int argc, char **argv) {
-  int64_t i;
-  struct bgc2_header hdr;
-
-  if (argc < 2) {
-    printf("Usage: %s file1.bgc2 ...\n", argv[0]);
-    exit(1);
-  }
-
-  for (i=1; i<argc; i++) {
-    num_g = num_p = 0;
-    load_bgc2(argv[i], &hdr, &grps, &num_g, &parts, &num_p);
-    //Do stuff with particles here...
-    //See io/bgc2.h for a description of the group and particle structure format
-  }
-  return 0;
-}
-
-
-
 void load_bgc2(char *filename, struct bgc2_header *hdr,
 	       GROUP_DATA_RMPVMAX **groups, int64_t *num_groups,
 	       PARTICLE_DATA_PV **pdata, int64_t *num_parts)
@@ -59,16 +39,16 @@ void load_bgc2(char *filename, struct bgc2_header *hdr,
   *groups = check_realloc(*groups, new_group_size, "Allocating groups.");
   fread_fortran((*groups) + (*num_groups), sizeof(GROUP_DATA_RMPVMAX), 
 		hdr->ngroups, input, 0);
-  *num_groups += hdr->ngroups;
   
   new_part_size = sizeof(PARTICLE_DATA_PV)*((*num_parts)+hdr->npart);
   *pdata = check_realloc(*pdata, new_part_size, "Allocating particles");
-  p_start = 0;
+  p_start = (*num_parts);
   for (i=0; i<hdr->ngroups; i++) {
     fread_fortran((*pdata) + p_start, sizeof(PARTICLE_DATA_PV), 
-		  groups[0][i].npart, input, 0);
-    p_start += groups[0][i].npart;
+		  groups[0][(*num_groups)+i].npart, input, 0);
+    p_start += groups[0][(*num_groups)+i].npart;
   }
+  *num_groups += hdr->ngroups;
   *num_parts += hdr->npart;
   fclose(input);
 }

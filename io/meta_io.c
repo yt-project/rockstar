@@ -6,7 +6,6 @@
 #include <inttypes.h>
 #include <math.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include "../check_syscalls.h"
 #include "../config_vars.h"
 #include "../config.h"
@@ -29,9 +28,8 @@ char **blocknames = NULL;
 
 void read_input_names(char *filename, char ***stringnames, int64_t *num_names) {
   int64_t i=0, j;
-  char buffer[1024];
+  char buffer[1024], **names = NULL;
   FILE *input;
-  char **names = NULL;
 
   if (!strlen(filename)) return;
   input = check_fopen(filename, "r");
@@ -163,7 +161,6 @@ void read_particles(char *filename) {
       for (j=0; j<3; j++) p[i].pos[j+3] *= vel_mul;
     }
   }
-  output_config(NULL);
 }
 
 int _within_bounds(struct halo *h, float *bounds) {
@@ -177,30 +174,37 @@ int _should_print(struct halo *h, float *bounds) {
   if (!_within_bounds(h,bounds)) return 0;
   if ((h->num_p < MIN_HALO_OUTPUT_SIZE) ||
       (h->m * UNBOUND_THRESHOLD >= h->mgrav) ||
-      ((h->m <= PARTICLE_MASS) && UNBOUND_THRESHOLD > 0)) return 0;
+      ((h->mgrav < 1.5*PARTICLE_MASS) && UNBOUND_THRESHOLD > 0)) return 0;
   return 1;
 }
 
-void print_ascii_header_info(FILE *output, float *bounds) {
-  fprintf(output, "#a = %f\n", SCALE_NOW);
+int64_t print_ascii_header_info(FILE *output, float *bounds, int64_t np) {
+  int64_t chars = 0;
+  chars += fprintf(output, "#a = %f\n", SCALE_NOW);
   if (bounds)
-    fprintf(output, "#Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
-	    bounds[0], bounds[1], bounds[2], 
-	    bounds[3], bounds[4], bounds[5]);
-  fprintf(output, "#Om = %f; Ol = %f; h = %f\n", Om, Ol, h0);
-  fprintf(output, "#Unbound Threshold: %f; FOF Refinement Threshold: %f\n",
-	  UNBOUND_THRESHOLD, FOF_FRACTION);
-  fprintf(output, "#Particle mass: %.5e Msun/h\n", PARTICLE_MASS);
-  fprintf(output, "#Box size: %f Mpc/h\n", BOX_SIZE);
-  fprintf(output, "#Total particles processed: %"PRId64"\n", num_p);
-  fprintf(output, "#Force resolution assumed: %g Mpc/h\n", FORCE_RES);
-  fprintf(output, "#Units: Masses in Msun / h\n"
+    chars += fprintf(output, "#Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
+		     bounds[0], bounds[1], bounds[2], 
+		     bounds[3], bounds[4], bounds[5]);
+  chars += fprintf(output, "#Om = %f; Ol = %f; h = %f\n", Om, Ol, h0);
+  chars += fprintf(output, "#FOF linking length: %f\n", FOF_LINKING_LENGTH);
+  chars += fprintf(output, "#Unbound Threshold: %f; FOF Refinement Threshold: %f\n",
+		   UNBOUND_THRESHOLD, FOF_FRACTION);
+  chars += fprintf(output, "#Particle mass: %.5e Msun/h\n", PARTICLE_MASS);
+  chars += fprintf(output, "#Box size: %f Mpc/h\n", BOX_SIZE);
+  if (np) chars+=fprintf(output, "#Total particles processed: %"PRId64"\n", np);
+  chars += fprintf(output, "#Force resolution assumed: %g Mpc/h\n", FORCE_RES);
+  chars += fprintf(output, "#Units: Masses in Msun / h\n"
 	  "#Units: Positions in Mpc / h (comoving)\n"
 	  "#Units: Velocities in km / s (physical, peculiar)\n"
-	  "#Units: Radii in kpc / h (comoving)\n"
+	  "#Units: Halo Distances, Lengths, and Radii in kpc / h (comoving)\n"
 	  "#Units: Angular Momenta in (Msun/h) * (Mpc/h) * km/s (physical)\n"
-	  "#Units: Total energy in (Msun/h)*(km/s)^2 (physical)\n");
-  fprintf(output, "#Rockstar Version: %s\n", ROCKSTAR_VERSION);
+	  "#Units: Spins are dimensionless\n");
+  if (np)
+    chars += fprintf(output, "#Units: Total energy in (Msun/h)*(km/s)^2"
+		     " (physical)\n"
+	    "#Note: idx, i_so, and i_ph are internal debugging quantities\n");
+  chars += fprintf(output, "#Rockstar Version: %s\n", ROCKSTAR_VERSION);
+  return chars;
 }
 
 void output_ascii(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds) {
@@ -209,27 +213,27 @@ void output_ascii(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
   FILE *output;
   struct halo *th;
   get_output_filename(buffer, 1024, snap, chunk, "ascii");
-  //if (PARALLEL_IO) 
   output = check_fopen(buffer, "w");
-  //else output = stdout;
 
-  fprintf(output, "#id num_p m%s mbound_%s r%s vmax rvmax vrms x y z vx vy vz Jx Jy Jz E Spin PosUncertainty VelUncertainty bulk_vx bulk_vy bulk_vz BulkVelUnc n_core\n", MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION);
-  print_ascii_header_info(output, bounds);
+  fprintf(output, "#id num_p m%s mbound_%s r%s vmax rvmax vrms x y z vx vy vz Jx Jy Jz E Spin PosUncertainty VelUncertainty bulk_vx bulk_vy bulk_vz BulkVelUnc n_core m%s m%s m%s m%s Xoff Voff spin_bullock b_to_a c_to_a A[x] A[y] A[z] Rs Rs_Klypin T/|U| idx i_so i_ph num_cp mmetric\n", MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION2, MASS_DEFINITION3, MASS_DEFINITION4, MASS_DEFINITION5);
+  print_ascii_header_info(output, bounds, num_p);
 
   for (i=0; i<num_halos; i++) {
     if (!_should_print(halos+i, bounds)) continue;
     th = halos+i;
     fprintf(output, "%"PRId64" %"PRId64" %.3e %.3e"
-	    " %f %f %f %f %f %f %f %f %f %f %g %g %g %g %g %f %f %f %f %f %f %"PRId64"\n", id+id_offset,
+	    " %f %f %f %f %f %f %f %f %f %f %g %g %g %g %g %f %f %f %f %f %f %"PRId64" %e %e %e %e %f %f %f %f %f %f %f %f %f %f %f %"PRId64" %"PRId64" %"PRId64" %"PRId64" %f\n", id+id_offset,
 	    th->num_p, th->m, th->mgrav, th->r,	th->vmax, th->rvmax, th->vrms,
 	    th->pos[0], th->pos[1], th->pos[2], th->pos[3], th->pos[4],
 	    th->pos[5], th->J[0], th->J[1], th->J[2], th->energy, th->spin,
 	    sqrt(th->min_pos_err), sqrt(th->min_vel_err), th->bulkvel[0],
 	    th->bulkvel[1], th->bulkvel[2], sqrt(th->min_bulkvel_err),
-	    th->n_core);
+	    th->n_core, th->alt_m[0], th->alt_m[1], th->alt_m[2], th->alt_m[3], 
+	    th->Xoff, th->Voff, th->bullock_spin, th->b_to_a, th->c_to_a,
+	    th->A[0], th->A[1], th->A[2], th->rs, th->klypin_rs, th->kin_to_pot,
+	    i, extra_info[i].sub_of, extra_info[i].ph, th->num_child_particles, extra_info[i].max_metric);
     id++;
   }
-  //if (PARALLEL_IO) 
   fclose(output);
 }
 
@@ -242,126 +246,8 @@ void print_child_particles(FILE *output, int64_t i, int64_t pid, int64_t eid) {
   }
   child = extra_info[i].child;
   while (child > -1) {
-    if (halos[child].num_p < DOUBLE_COUNT_SUBHALO_MASS_RATIO*halos[pid].num_p)
-      print_child_particles(output, child, pid, eid);
+    print_child_particles(output, child, pid, eid);
     child = extra_info[child].next_cochild;
-  }
-}
-
-int compare_masses(const void *a, const void *b) {
-  const struct halo *c = a;
-  const struct halo *d = b;
-  if (c->m > d->m) return -1;
-  if (d->m > c->m) return 1;
-  return 0;
-}
-
-struct particle *output_p = NULL;
-int64_t num_alloced_output_p = 0;
-
-void add_more_output_p(int64_t total) {
-  num_alloced_output_p = total+1000;
-  output_p = check_realloc(output_p, sizeof(struct particle)*num_alloced_output_p,
-			   "Allocating bound output particles.");
-}
-
-int64_t populate_copies(struct halo *h, float *cen, int64_t p_start)
-{
-  int64_t j, k, child;
-  float dx = 0, r2, v2;
-  struct particle *p2;
-
-  if (num_alloced_output_p < p_start + h->num_p)
-    add_more_output_p(p_start+h->num_p);
-  memcpy(output_p + p_start, p + h->p_start, sizeof(struct particle)*h->num_p);
-  for (j=0; j<h->num_p; j++) {
-    output_p[p_start+j].id = h->p_start + j;
-  }
-
-  for (j=0; j<h->num_p; j++) {
-    p2 = p + h->p_start + j;
-    for (r2=0,k=0; k<3; k++) { dx = p2->pos[k]-cen[k]; r2+=dx*dx; }
-    for (v2=0,k=3; k<6; k++) { dx = p2->pos[k]-cen[k]; v2+=dx*dx; }
-    output_p[p_start + j].pos[0] = r2;
-    output_p[p_start + j].pos[1] = v2;
-  }
-  child = extra_info[h-halos].child;
-  p_start += h->num_p;
-  while (child > -1) {
-    p_start += populate_copies(halos+child, cen, p_start);
-    child = extra_info[child].next_cochild;
-  }
-  return p_start;
-}
-
-int sort_radii(const void *a, const void *b) {
-  const struct particle *c = a;
-  const struct particle *d = b;
-  if (c->pos[0] < d->pos[0]) return -1;
-  if (d->pos[0] < c->pos[0]) return 1;
-  return 0;
-}
-
-void print_bound_particles(struct halo *h, FILE *output, int64_t total_p) {
-  int64_t i, num_bound = 0;
-  double phi = 0;
-  double potential_constant = 2.0*PARTICLE_MASS*Gc;
-  struct particle *p2;
-  for (i=0; i<total_p; i++)
-    output_p[i].pos[0] = SCALE_NOW*sqrt(output_p[i].pos[0]);
-  for (i=total_p-1; i>=0; i--) {
-    if (potential_constant*(i/output_p[i].pos[0] + phi) > output_p[i].pos[1]) {
-      p2 = p + output_p[i].id;
-      if (!FULL_PARTICLE_CHUNKS)
-	fprintf(output, "%"PRId64"\n", p2->id);
-      else
-	fprintf(output, "%f %f %f %f %f %f %"PRId64" %"PRId64"\n", p2->pos[0], p2->pos[1], p2->pos[2], p2->pos[3], p2->pos[4], p2->pos[5], p2->id, h->id);
-      phi += 1.0/output_p[i].pos[0];
-      num_bound++;
-    }
-  }
-}
-
-void output_particles(char *filename)
-{
-  char buffer[1024];
-  int64_t i, j, id=0;
-  FILE *output;
-  struct particle *p2;
-  sprintf(buffer, "%s/%s.list", OUTBASE, filename);
-  output = check_fopen(buffer, "w");
-  for (i=0; i<num_halos; i++) {
-    if (!_should_print(halos+i, NULL)) continue;
-    for (j=0; j<halos[i].num_p; j++) {
-      p2 = p + halos[i].p_start + j;
-      fprintf(output, "%f %f %f %f %f %f %"PRId64" %"PRId64"\n", p2->pos[0], p2->pos[1], p2->pos[2], p2->pos[3], p2->pos[4], p2->pos[5], p2->id, id);
-    }
-    id++;
-  }
-  fclose(output);
-}
-
-void output_hmad(char *filename) {
-  char buffer[1024];
-  int64_t i, id=0;
-  FILE *output;
-  int64_t num_hp;
-
-  qsort(halos, num_halos, sizeof(struct halo), compare_masses);
-  for (i=0; i<num_halos; i++) {
-    if (!_should_print(halos+i, NULL)) continue;
-    num_hp = populate_copies(halos+i,halos[i].pos,0);
-    qsort(output_p, num_hp, sizeof(struct particle), sort_radii);
-
-    sprintf(buffer, "%s/%s_%"PRId64".list", OUTBASE, filename, id);
-    output = check_fopen(buffer, "w");
-
-    if (!FULL_PARTICLE_CHUNKS)
-      fprintf(output, "%f %f %f\n", halos[i].pos[0], halos[i].pos[1],
-	      halos[i].pos[2]);
-    print_bound_particles(halos+i, output, num_hp);
-    id++;
-    fclose(output);
   }
 }
 
@@ -381,9 +267,8 @@ void output_full_particles(int64_t id_offset, int64_t snap, int64_t chunk, float
   fprintf(output, "#x y z vx vy vz particle_id assigned_internal_haloid internal_haloid external_haloid\n");
 
   fprintf(output, "#Notes: As not all halos are printed, some halos may not have external halo ids.  (Hence the need to print internal halo ids).  Each particle is assigned to a unique halo; however, some properties (such as halo bound mass) are calculated including all substructure.  As such, particles belonging to subhalos are included in outputs; to exclude substructure, verify that the internal halo id is the same as the assigned internal halo id.\n");
-  fprintf(output, "#Note also that halos with centers in particle ghost zones (outside the nominal boundaries) will not be printed, as their particle lists may be incomplete.\n");
 
-  print_ascii_header_info(output, bounds);
+  print_ascii_header_info(output, bounds, num_p);
   fprintf(output, "#Halo table begins here:\n");
   
   for (i=0; i<num_halos; i++) {
@@ -420,10 +305,11 @@ int64_t count_halos_to_print(float *bounds) {
   return to_print;
 }
 
-void output_and_free_halos(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds) {
+void output_halos(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds) {
   if (!strcasecmp(OUTPUT_FORMAT, "BOTH") || !strcasecmp(OUTPUT_FORMAT, "ASCII"))
     output_ascii(id_offset, snap, chunk, bounds);
-  if (!strcasecmp(OUTPUT_FORMAT, "BOTH")|| !strcasecmp(OUTPUT_FORMAT, "BINARY"))
+  if (!strcasecmp(OUTPUT_FORMAT, "BOTH") || !strcasecmp(OUTPUT_FORMAT, "BINARY")
+      || (TEMPORAL_HALO_FINDING && !LIGHTCONE))
     output_binary(id_offset, snap, chunk, bounds);
 
   if (chunk<FULL_PARTICLE_CHUNKS) {
@@ -436,60 +322,58 @@ void output_and_free_halos(int64_t id_offset, int64_t snap, int64_t chunk, float
   if (DUMP_PARTICLES[0] && (chunk >= DUMP_PARTICLES[1] &&
 			    chunk <= DUMP_PARTICLES[2]))
     output_particles_internal(snap, chunk);
-
-  output_bgc2(id_offset, snap, chunk, bounds);
-
-  halos = check_realloc(halos, 0, "Freeing halo memory.");
-  num_halos = 0;
 }
 
 
-void output_merger_catalog(int64_t snap, int64_t chunk, struct halo *halos, int64_t num_halos) {
-  char buffer[1024];
+char *gen_merger_catalog(int64_t snap, int64_t chunk, struct halo *halos, int64_t num_halos, int64_t *cat_length, int64_t *header_length) {
+  char *cat = NULL;
+  char *cur_pos = NULL;
+  int64_t chars = 0, hchars = 0, chars_a = 0;
   FILE *output;
   int64_t i, j;
   double m;
   struct halo *th;
-  struct flock fl = {0};
-
-  snprintf(buffer, 1024, "%s/out_%"PRId64".list", OUTBASE, snap);
-  fl.l_type = F_WRLCK;
-  fl.l_whence = SEEK_SET;
-  fl.l_start = 0;
-  fl.l_len = 0;
 
   if (chunk == 0) {
+    char buffer[1024];
+    snprintf(buffer, 1024, "%s/out_%"PRId64".list", OUTBASE, snap);
     output = check_fopen(buffer, "w");
-    fcntl(fileno(output), F_SETLKW, &fl);
-    fprintf(output, "#ID DescID M%s Vmax Vrms R%s Rs Np X Y Z VX VY VZ JX JY JZ Spin\n",
-	    MASS_DEFINITION, MASS_DEFINITION);
-    fprintf(output, "#a = %f\n", SCALE_NOW);
-    fprintf(output, "#Om = %f; Ol = %f; h = %f\n", Om, Ol, h0);
-    fprintf(output, "#Unbound Threshold: %f; FOF Refinement Threshold: %f\n",
-	    UNBOUND_THRESHOLD, FOF_FRACTION);
-    fprintf(output, "#Particle mass: %.5e Msun/h\n", PARTICLE_MASS);
-    fprintf(output, "#Box size: %f Mpc/h\n", BOX_SIZE);
-    fprintf(output, "#Units: Masses in Msun / h\n"
-	    "#Units: Positions in Mpc / h (comoving)\n"
-	    "#Units: Velocities in km / s (physical)\n"
-	    "#Units: Angular Momenta in (Msun/h) * (Mpc/h) * km/s (physical)\n"
-	    "#Units: Radii in kpc / h (comoving)\n");
-    fprintf(output, "#Rockstar Version: %s\n", ROCKSTAR_VERSION);
-  }
-  else {
-    output = check_fopen(buffer, "a");
-    fcntl(fileno(output), F_SETLKW, &fl);
+    hchars += fprintf(output, "#ID DescID M%s Vmax Vrms R%s Rs Np X Y Z VX VY VZ JX JY JZ Spin rs_klypin M%s_all M%s M%s M%s M%s Xoff Voff spin_bullock b_to_a c_to_a A[x] A[y] A[z] T/|U|\n",
+	    MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION2, MASS_DEFINITION3, MASS_DEFINITION4, MASS_DEFINITION5);
+    hchars += print_ascii_header_info(output, NULL, 0);
+    fclose(output);
   }
   
   for (i=0; i<num_halos; i++) {
+    if (chars + 1024 > chars_a) {
+      chars_a = chars + 10000;
+      check_realloc_s(cat, sizeof(char), chars_a);
+    }
+    cur_pos = cat + chars;
     th = halos+i;
     if (LIGHTCONE) for (j=0; j<3; j++) th->pos[j] -= LIGHTCONE_ORIGIN[j];
     m = (BOUND_PROPS) ? th->mgrav : th->m;
-    fprintf(output, "%"PRId64" %"PRId64" %.4e %.2f %.2f %.3f %.3f %"PRId64" %.5f %.5f %.5f %.2f %.2f %.2f %.3e %.3e %.3e %.5f\n",
+    chars += snprintf(cur_pos, 1024, "%"PRId64" %"PRId64" %.4e %.2f %.2f %.3f %.3f %"PRId64" %.5f %.5f %.5f %.2f %.2f %.2f %.3e %.3e %.3e %.5f %.5f %.4e %.4e %.4e %.4e %.4e %.5f %.2f %.5f %.5f %.5f %.5f %.5f %.5f %.4f\n",
 	    th->id, th->desc, m, th->vmax, th->vrms, th->r, th->rs,
 	    th->num_p, th->pos[0], th->pos[1], th->pos[2], th->pos[3],
-	    th->pos[4], th->pos[5], th->J[0], th->J[1], th->J[2], th->spin);
+	    th->pos[4], th->pos[5], th->J[0], th->J[1], th->J[2], th->spin,
+	    th->klypin_rs, th->m, th->alt_m[0], th->alt_m[1], th->alt_m[2],
+	    th->alt_m[3], th->Xoff, th->Voff, th->bullock_spin, th->b_to_a,
+	    th->c_to_a, th->A[0], th->A[1], th->A[2], th->kin_to_pot);
   }
-  fflush(output);
-  fclose(output); //Also unlocks the file
+  *cat_length = chars;
+  *header_length = hchars;
+  return cat;
+}
+
+void output_merger_catalog(int64_t snap, int64_t chunk, int64_t location, int64_t length, char *cat) {
+  FILE *output;
+  char buffer[1024];
+  snprintf(buffer, 1024, "%s/out_%"PRId64".list", OUTBASE, snap);
+  output = check_fopen(buffer, "r+");
+  check_lseek(fileno(output), location, SEEK_SET); //Increases length as needed
+  check_fseeko(output, location, SEEK_SET); //Sets stream file pointer
+  check_fwrite(cat, 1, length, output);
+  fclose(output);
+  free(cat);
 }

@@ -15,11 +15,10 @@ void get_output_filename(char *buffer, int maxlen, int64_t snap,
 void read_particles(char *filename);
 int64_t count_halos_to_print(float *bounds);
 void delete_binary(int64_t snap, int64_t chunk);
-void output_and_free_halos(int64_t id_offset, int64_t snap, 
-			   int64_t chunk, float *bounds);
-void output_merger_catalog(int64_t snap, int64_t chunk,
-			   struct halo *halos, int64_t num_halos);
-void output_hmad(char *filename);
-void output_particles(char *filename);
+void output_halos(int64_t id_offset, int64_t snap, 
+		  int64_t chunk, float *bounds);
+
+char *gen_merger_catalog(int64_t snap, int64_t chunk, struct halo *halos, int64_t num_halos, int64_t *cat_length, int64_t *header_length);
+void output_merger_catalog(int64_t snap, int64_t chunk, int64_t location, int64_t length, char *cat);
 
 #endif /* _META_IO_H_ */

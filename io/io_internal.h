@@ -3,7 +3,7 @@
 #include <inttypes.h>
 #include "../particle.h"
 
-#define ROCKSTAR_MAGIC (uint64_t)0xfadedace00000000
+#define ROCKSTAR_MAGIC (uint64_t)0xfadedacec0c0d0d0
 #define BINARY_HEADER_SIZE 256
 #define PARTICLE_TYPE_NONE 0
 #define PARTICLE_TYPE_IDS 1
@@ -33,6 +33,5 @@ void load_binary_header(int64_t snap, int64_t chunk,
 			struct binary_output_header *bheader);
 void load_binary_halos(int64_t snap, int64_t chunk, 
       struct binary_output_header *bheader, struct halo **halos,
-		       int64_t **part_ids);
-
+		       int64_t **part_ids, int64_t coalesced);
 #endif /* _IO_INTERNAL_H_ */

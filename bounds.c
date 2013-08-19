@@ -1,3 +1,5 @@
+#include <math.h>
+#include <assert.h>
 #include "config_vars.h"
 
 int _check_bounds(float *pos_i, float *pos_f, float *bounds) {
@@ -20,25 +22,19 @@ int _check_bounds(float *pos_i, float *pos_f, float *bounds) {
   return 1;
 }
 
+void wrap_into_box(float *pos) {
+  int64_t i;
+  if (!PERIODIC || !BOX_SIZE) return;
+  for (i=0; i<3; i++) {
+    if (pos[i]>BOX_SIZE) pos[i] -= BOX_SIZE;
+    else if (pos[i]<0) pos[i] += BOX_SIZE;
+  }
+}
+
 int _check_bounds_raw(float *pos_i, float *bounds) {
   int64_t i;
   for (i=0; i<3; i++)
-    if (pos_i[i]>bounds[i+3] || pos_i[i]<bounds[i]) return 0;
-  return 1;
-}
-
-
-int _check_bounds_old(float *pos_i, float *pos_f, float *bounds) {
-  int64_t i, wrap, max_wrap;
-  for (i=0; i<3; i++) {
-    wrap = ((bounds[i]<0) && PERIODIC) ? -1 : 0;
-    max_wrap = ((bounds[i+3]>BOX_SIZE) && PERIODIC) ? 2 : 1;
-    for (; wrap < max_wrap; wrap++) {
-      pos_f[i] = pos_i[i]+wrap*BOX_SIZE;
-      if (pos_f[i]<=bounds[i+3] && pos_f[i] >= bounds[i]) break;
-    }
-    if (wrap == max_wrap) return 0; //Not in bounds
-  }
+    if (pos_i[i]>=bounds[i+3] || pos_i[i]<bounds[i]) return 0;
   return 1;
 }
 

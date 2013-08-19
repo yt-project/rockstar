@@ -147,3 +147,19 @@ void calc_deviations(double corr[][6], double *sig_x, double *sig_v)
   for (i=3; i<6; i++) for (j=3; j<6; j++) input[i-3][j-3] = corr[i][j];
   set_eig(input, sig_v);
 }
+
+void matrix_multiply(double m[][NUM_PARAMS], double *in, double *out) {
+  int i,j;
+  for (i=0; i<NUM_PARAMS; i++) out[i] = 0;
+  for (i=0; i<NUM_PARAMS; i++)
+    for (j=0; j<NUM_PARAMS; j++)
+      out[i] += m[i][j]*in[j];
+}
+
+void inv_matrix_multiply(double m[][NUM_PARAMS], double *in, double *out) {
+  int i,j;
+  for (i=0; i<NUM_PARAMS; i++) out[i] = 0;
+  for (i=0; i<NUM_PARAMS; i++)
+    for (j=0; j<NUM_PARAMS; j++)
+      out[i] += m[j][i]*in[j];
+}

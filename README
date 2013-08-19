@@ -296,6 +296,10 @@ Contents:
 
          /path/to/rockstar/util/finish_bgc2 -c rockstar.cfg -s <snap>
 
+      Note that particles in BGC2 files are automatically wrapped around
+      box edges if periodic boundary conditions are enabled; this way, they
+      always form contiguous regions.
+
    vii) Infiniband / Network Connectivity Notes:
       As particle transfer is usually a small fraction of the total analysis
       time, Rockstar performs well on pretty much any gigabit or faster network.

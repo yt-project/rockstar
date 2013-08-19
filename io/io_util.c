@@ -62,7 +62,7 @@ size_t _fread_fortran(void *ptr, size_t size, size_t nitems, FILE *stream, int s
 size_t fread_fortran(void *ptr, size_t size, size_t nitems, FILE *stream, int swap) {
   int64_t nread = 0;
   while (nread < nitems)
-    nread += _fread_fortran(ptr + (size*nread), size, nitems - nread, 
+    nread += _fread_fortran(((char *)ptr) + (size*nread), size, nitems - nread, 
 			    stream, swap);
   return ((size_t) nread);
 }
@@ -93,7 +93,7 @@ size_t fwrite_fortran(void *ptr, size_t size, size_t nitems, FILE *stream) {
   while (nwritten < nitems) {
     n_to_write = (((uint64_t)UINT32_MAX) / size);
     if (n_to_write > (nitems - nwritten)) n_to_write = nitems - nwritten;
-    _fwrite_fortran(ptr + (size*nwritten), size, n_to_write, stream);
+    _fwrite_fortran(((char *)ptr) + (size*nwritten), size, n_to_write, stream);
     nwritten += n_to_write;
   }
   return ((size_t) nwritten);
