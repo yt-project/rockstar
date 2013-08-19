@@ -94,6 +94,9 @@ void calc_basic_halo_props(struct halo *h) {
   if (h->vmax_r) h->r = h->vmax_r;
   //h->r = h->child_r;
   h->vrms = sqrt(h->vrms);
+
+  //If we have a set of generic functions, call them.
+  if(analyze_halo_generic != NULL) analyze_halo_generic(h, copies + h->p_start);
 }
 
 void add_ang_mom(double L[3], float c[6], float pos[6]) {

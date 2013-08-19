@@ -18,6 +18,7 @@
 #include "distance.h"
 #include "fun_times.h"
 #include "jacobi.h"
+#include "io/io_generic.h"
 
 #define FAST3TREE_DIM 6
 #define POINTS_PER_LEAF 40
