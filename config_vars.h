@@ -2,6 +2,7 @@
 #define _CONFIG_VARS_H_
 #include <stdint.h>
 
+/* These do not have THREADSAFE because they are global config */
 #define string(a,b)  extern char *  a;
 #define real(a,b)    extern double  a;
 #define real3(a,b)   extern double  a[3];

@@ -5,7 +5,7 @@
 #define _DISTANCE_Z_BINS 1000.0
 #define _DISTANCE_TOTAL_BINS ((int)(_DISTANCE_MAX_Z*_DISTANCE_Z_BINS))
 
-extern double Dh;
+extern THREADSAFE double Dh;
 
 void init_cosmology(void);
 double redshift(double a);

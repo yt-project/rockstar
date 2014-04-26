@@ -26,30 +26,30 @@
 #define FAST3TREE_TYPE struct particle
 #include "fast3tree.c"
 
-struct particle *copies = NULL; //For storing phase-space FOFs
-int64_t *particle_halos = NULL;
-float *particle_r = NULL;
-struct potential *po = NULL;
-int64_t num_alloc_pc = 0, num_copies = 0;
+THREADSAFE struct particle *copies = NULL; //For storing phase-space FOFs
+THREADSAFE int64_t *particle_halos = NULL;
+THREADSAFE float *particle_r = NULL;
+THREADSAFE struct potential *po = NULL;
+THREADSAFE int64_t num_alloc_pc = 0, num_copies = 0;
 
-struct fof *subfofs = NULL;
-int64_t num_subfofs = 0, num_alloced_subfofs = 0;
+THREADSAFE struct fof *subfofs = NULL;
+THREADSAFE int64_t num_subfofs = 0, num_alloced_subfofs = 0;
 
-int64_t num_halos = 0;
-struct halo *halos = NULL;
-struct extra_halo_info *extra_info = NULL;
+THREADSAFE int64_t num_halos = 0;
+THREADSAFE struct halo *halos = NULL;
+THREADSAFE struct extra_halo_info *extra_info = NULL;
 
-struct fast3tree_results *res = NULL;
-struct fast3tree *phasetree = NULL;
+THREADSAFE struct fast3tree_results *res = NULL;
+THREADSAFE struct fast3tree *phasetree = NULL;
 
-int64_t num_alloc_gh = 0, num_growing_halos = 0;
-struct halo **growing_halos = NULL;
+THREADSAFE int64_t num_alloc_gh = 0, num_growing_halos = 0;
+THREADSAFE struct halo **growing_halos = NULL;
 
-int64_t *halo_ids = NULL;
-int64_t num_alloced_halo_ids = 0;
+THREADSAFE int64_t *halo_ids = NULL;
+THREADSAFE int64_t num_alloced_halo_ids = 0;
 
-double particle_thresh_dens[5] = {0}, particle_rvir_dens = 0;
-double dynamical_time = 0;
+THREADSAFE double particle_thresh_dens[5] = {0}, particle_rvir_dens = 0;
+THREADSAFE double dynamical_time = 0;
 
 double vir_density(double a) {
   double x = 1.0/(1.0+a*a*a*Ol/Om)-1.0;

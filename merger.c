@@ -6,11 +6,11 @@
 #include "halo.h"
 #include "io/meta_io.h"
 
-struct halo *halos1 = NULL, *halos2 = NULL;
-struct binary_output_header head1, head2;
-int64_t *part1 = NULL, *part2 = NULL;
-struct inthash *part2_halos = NULL;
-int64_t *part1_halos = NULL;
+THREADSAFE struct halo *halos1 = NULL, *halos2 = NULL;
+THREADSAFE struct binary_output_header head1, head2;
+THREADSAFE int64_t *part1 = NULL, *part2 = NULL;
+THREADSAFE struct inthash *part2_halos = NULL;
+THREADSAFE int64_t *part1_halos = NULL;
 
 void clear_merger_tree(void) {
   memset(&head1, 0, sizeof(struct binary_output_header));

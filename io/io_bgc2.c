@@ -16,9 +16,9 @@
 char **bgc2_snapnames = NULL;
 int64_t num_bgc2_snaps = 0;
 GROUP_DATA_RMPVMAX *gd = NULL;
-extern float *particle_r;
+extern THREADSAFE float *particle_r;
 
-extern double particle_thresh_dens[5];
+extern THREADSAFE double particle_thresh_dens[5];
 
 void populate_header(struct bgc2_header *hdr, int64_t id_offset, 
 		     int64_t snap, int64_t chunk, float *bounds) {

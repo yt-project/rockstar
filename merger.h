@@ -8,9 +8,9 @@ struct particle_halo {
   int64_t pid, hid;
 };
 
-extern struct halo *halos1, *halos2;
-extern struct binary_output_header head1, head2;
-extern int64_t *part1, *part2;
+extern THREADSAFE struct halo *halos1, *halos2;
+extern THREADSAFE struct binary_output_header head1, head2;
+extern THREADSAFE int64_t *part1, *part2;
 
 void clear_merger_tree(void);
 void init_descendants(void);

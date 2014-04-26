@@ -10,9 +10,9 @@
 #define POSSIBLE_SWAP_FLAG 4
 #define TAGGED_FLAG 8
 
-extern struct halo *halos;
-extern int64_t num_halos;
-extern struct extra_halo_info *extra_info;
+extern THREADSAFE struct halo *halos;
+extern THREADSAFE int64_t num_halos;
+extern THREADSAFE struct extra_halo_info *extra_info;
 
 void find_subs(struct fof *f);
 void calc_mass_definition(void);

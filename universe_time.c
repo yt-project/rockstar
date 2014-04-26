@@ -7,10 +7,10 @@
 
 #define STEPS 1024
 
-static double t_0 = 0;       // Time now (in Hubble time units).
-static double times[STEPS+1]={0};
-static double H_CONV = HUBBLE_TIME_CONVERSION/0.7;
-static double exact_t0_conv = 0;
+static THREADSAFE double t_0 = 0;       // Time now (in Hubble time units).
+static THREADSAFE double times[STEPS+1]={0};
+static THREADSAFE double H_CONV = HUBBLE_TIME_CONVERSION/0.7;
+static THREADSAFE double exact_t0_conv = 0;
 
 void init_time_table(void) {
   double a = 1;
