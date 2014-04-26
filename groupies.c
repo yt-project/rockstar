@@ -394,6 +394,7 @@ void _find_subs(struct fof *f, int64_t level) {
 
   for (j=0; j<f->num_p; j++) {
     struct particle *c = f->particles + j;
+    if (c->id < 0) continue;
     memcpy(c->pos, p[c->id].pos, sizeof(float)*6);
   }
 
