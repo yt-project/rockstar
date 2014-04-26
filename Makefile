@@ -4,7 +4,40 @@ OFLAGS = -lm -O3 -std=c99
 DEBUGFLAGS = -lm -g -O0 -std=c99 -Dinline= 
 PROFFLAGS = -lm -g -pg -O2 -std=c99
 CC = gcc
-CFILES = rockstar.c check_syscalls.c fof.c groupies.c subhalo_metric.c potential.c nfw.c jacobi.c fun_times.c interleaving.c universe_time.c distance.c config_vars.c config.c bounds.c inthash.c io/read_config.c client.c server.c merger.c inet/socket.c inet/rsocket.c inet/address.c io/meta_io.c io/io_internal.c io/io_ascii.c io/stringparse.c io/io_gadget.c io/io_generic.c io/io_art.c io/io_tipsy.c io/io_bgc2.c io/io_util.c
+CFILES =  rockstar.c \
+		  check_syscalls.c \
+		  fof.c \
+		  groupies.c \
+		  subhalo_metric.c \
+		  potential.c \
+		  nfw.c \
+		  jacobi.c \
+		  fun_times.c \
+		  interleaving.c \
+		  universe_time.c \
+		  distance.c \
+		  config_vars.c \
+		  config.c \
+		  bounds.c \
+		  inthash.c \
+		  io/read_config.c \
+		  client.c \
+		  server.c \
+		  merger.c \
+		  inet/socket.c \
+		  inet/rsocket.c \
+		  inet/address.c \
+		  io/meta_io.c \
+		  io/io_internal.c \
+		  io/io_ascii.c \
+		  io/stringparse.c \
+		  io/io_gadget.c \
+		  io/io_generic.c \
+		  io/io_art.c \
+		  io/io_tipsy.c \
+		  io/io_bgc2.c \
+		  io/io_util.c
+
 DIST_FLAGS =
 
 all:
