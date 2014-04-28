@@ -11,7 +11,7 @@ struct halo {
     bullock_spin, kin_to_pot;
   int64_t num_p, num_child_particles, p_start, desc, flags, n_core;
   float min_pos_err, min_vel_err, min_bulkvel_err;
-};
+} __attribute__((packed));
 
 struct extra_halo_info {
   int64_t child, next_cochild, prev_cochild;
