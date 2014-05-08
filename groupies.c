@@ -520,6 +520,7 @@ void find_subs(struct fof *f) {
   memcpy(f->particles, copies, sizeof(struct particle)*f->num_p);
   for (i=h_start; i<num_halos; i++)
     halos[i].p_start += (f->particles - p);
+  fast3tree_free(&phasetree);
 }
 
 
