@@ -37,7 +37,7 @@ int sort_by_id(const void *a, const void *b) {
   return 0;
 }
 
-void calc_bgc2_parents(int64_t snap)
+void *calc_bgc2_parents(int64_t snap)
 {
   char buffer[1024];
   int64_t i, num_groups = 0;
@@ -83,15 +83,16 @@ void calc_bgc2_parents(int64_t snap)
     } else {
       first_group = gd;
     }
-    get_output_filename(buffer, 1024, snap, i, "bgc2");
-    output = fopen(buffer, "r+b");
+    get_output_filename(buffer, 1024, snap, i, "bgc2h");
+    output = fopen(buffer, "w");
     fwrite_fortran(hdrs + i, BGC2_HEADER_SIZE, 1, output);
     fwrite_fortran(first_group, sizeof(GROUP_DATA_RMPVMAX), 
 		   hdrs[i].ngroups, output);
     fclose(output);
   }
 
-  gd = check_realloc(gd, 0, "Freeing group data.");
+  /* gd = check_realloc(gd, 0, "Freeing group data."); */
   free(first_ids);
-  free(hdrs);
+  /* free(hdrs); */
+  return hdrs;
 }

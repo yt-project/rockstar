@@ -55,7 +55,10 @@ size_t _fread_fortran(void *ptr, size_t size, size_t nitems, FILE *stream, int s
   else n = check_fread(ptr, size, nitems, stream);
   if (swap) fread_swap(&tail, 4, 1, stream);
   else check_fread(&tail, 4, 1, stream);
-  assert(head == tail);
+  if (head != tail) {
+    printf("Header length: %d; tail length: %d\n", head, tail);
+    assert(head == tail);
+  }
   return n;
 }
 

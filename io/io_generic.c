@@ -6,8 +6,10 @@
 #include "io_generic.h"
 
 LPG load_particles_generic = NULL;
+AHG analyze_halo_generic = NULL;
 
-void set_load_particles_generic(LPG func)
+void set_load_particles_generic(LPG func, AHG afunc)
 {
   load_particles_generic = func;
+  analyze_halo_generic = afunc;
 }

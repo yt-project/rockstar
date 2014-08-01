@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <inttypes.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
@@ -9,9 +10,12 @@
 #include <unistd.h>
 #include <signal.h>
 #include "inthash.h"
+#include "check_syscalls.h"
 
 //#define DEBUG_IO
 
+char *unread = NULL;
+int64_t unread_size = 0;
 
 void system_error(char *errmsg) {
   fprintf(stderr, "[Error] %s\n", errmsg);
@@ -111,17 +115,22 @@ void rw_socket_close(FILE *res, pid_t pid) {
 
 void *check_realloc(void *ptr, size_t size, char *reason) {
   if (size > 0) {
-    void *res = realloc(ptr, size);
-    if (res == NULL) {
-      fprintf(stderr, "[Error] Failed to allocate memory (%s)!\n", reason);
-      exit(1);
-    }
-    return res;
+      int iter = 0;
+      void *res;
+      while (!(res = realloc(ptr, size))) {
+	  fprintf(stderr, "[Warning] Failed to allocate %ld Mbytes (%s)!\n", size, reason);
+	  /* sometimes works on multicore nodes with no swap */
+	  sleep(30);
+	  if (++iter > 20) {
+	      fprintf(stderr, "[Error] Failed to allocate memory (%s)!\n", reason);
+	      exit(1);
+	  }
+      }
+      return res;
   }
   if (ptr != NULL) free(ptr);
-  return(NULL);
+  return NULL;
 }
-
 
 void _io_err(int rw, size_t size, size_t nitems, FILE *stream) {
   char *verb = (rw) ? "write" : "read";
@@ -147,12 +156,44 @@ void check_fseeko(FILE *stream, off_t offset, int whence) {
   }
 }
 
+//Works even for pipes
+void check_fskip(FILE *stream, off_t offset, char *buffer, size_t buf_size) {
+  int64_t n = 0;
+  while (n<offset) {
+    int64_t to_read = offset-n;
+    if (buf_size < to_read) to_read = buf_size;
+    n += check_fread(buffer, 1, to_read, stream);
+  }
+}
+
+void check_limited_funread(void *ptr, size_t size, size_t nitems) {
+  if (unread_size) {
+    fprintf(stderr, "[Error] Tried to unread twice in a row\n");
+    exit(1);
+  }
+  check_realloc_s(unread, size, nitems);
+  unread_size = size*nitems;
+  memcpy(unread, ptr, unread_size);  
+}
+
 size_t check_fread(void *ptr, size_t size, size_t nitems, FILE *stream) {
   size_t res = 1, nread = 0;
+  if (unread_size) {
+    if (unread_size != (size*nitems)) {
+      fprintf(stderr, "[Error] funread must be followed by identical fread!\n");
+      exit(1);
+    }
+    memcpy(ptr, unread, unread_size);
+    check_realloc_s(unread, 0, 0);
+    unread_size = 0;
+    return nitems;
+  }
+
   while (nread < nitems) {
-    res = fread(ptr, size, nitems, stream);
+    res = fread(ptr, size, nitems-nread, stream);
     if (res <= 0) _io_err(0, size, nitems, stream);
     nread += res;
+    ptr = ((char *)ptr) + res*size;
   }
   return nread;
 }

@@ -9,7 +9,7 @@
 
 static double t_0 = 0;       // Time now (in Hubble time units).
 static double times[STEPS+1]={0};
-static double H_CONV = HUBBLE_TIME_CONVERSION/0.7;
+static double H_CONV = 0;
 static double exact_t0_conv = 0;
 
 void init_time_table(void) {

@@ -26,7 +26,7 @@ struct inthash *new_inthash(void) {
   return ih;
 }
 
-void *ih_keylist(struct inthash *ih) {
+int64_t *ih_keylist(struct inthash *ih) {
   int64_t i, j=0;
   int64_t *kl = check_realloc(NULL, sizeof(int64_t)*ih->elems, "Allocating key list.");
   struct intbucket *ib = NULL;

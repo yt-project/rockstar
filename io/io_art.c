@@ -18,6 +18,7 @@ void art_detect_endianness(FILE *input, char *filename) {
   int32_t first_word, swapped;
   SWAP_ENDIANNESS=0;
   check_fread(&first_word, sizeof(int32_t), 1, input);
+  check_limited_funread(&first_word, sizeof(int32_t), 1);
   if (first_word != ART_TEXT_SIZE) {
     SWAP_ENDIANNESS = 1;
     swapped = first_word;
@@ -28,7 +29,6 @@ void art_detect_endianness(FILE *input, char *filename) {
     fprintf(stderr, "Expected title size of %d; got %d (or %d if byte-swapped).\n", ART_TEXT_SIZE, first_word, swapped);
     exit(1);
   }
-  rewind(input);
 }
 
 void art_swap_4byte_endianness(void *data, int64_t length) {

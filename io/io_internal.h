@@ -28,7 +28,7 @@ void fill_binary_header(struct binary_output_header *bh,
 void read_binary_header_config(struct binary_output_header *bh);
 void output_particles_internal(int64_t snap, int64_t chunk);
 void load_particles_internal(char *filename, struct particle **part, int64_t *num_part);
-void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds);
+void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds, int64_t output_particles);
 void load_binary_header(int64_t snap, int64_t chunk, 
 			struct binary_output_header *bheader);
 void load_binary_halos(int64_t snap, int64_t chunk, 
