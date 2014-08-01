@@ -20,7 +20,9 @@
 #include "io_generic.h"
 #include "io_internal.h"
 #include "io_tipsy.h"
+#ifdef ENABLE_SDF
 #include "io_sdf.h"
+#endif
 #include "meta_io.h"
 #include "../distance.h"
 #include "../version.h"
@@ -118,9 +120,12 @@ void read_particles(char *filename) {
   }
   else if (!strncasecmp(FILE_FORMAT, "TIPSY", 5)) {
     load_particles_tipsy(filename, &p, &num_p);
-  } else if (!strncasecmp(FILE_FORMAT, "SDF", 3)) {
+  } 
+#ifdef ENABLE_SDF
+  else if (!strncasecmp(FILE_FORMAT, "SDF", 3)) {
     load_particles_sdf(filename, SDF_HEADER, &p, &num_p);
   }
+#endif
   else {
     fprintf(stderr, "[Error] Unknown filetype %s!\n", FILE_FORMAT);
     exit(1);
@@ -214,7 +219,9 @@ int64_t print_ascii_header_info(FILE *output, float *bounds, int64_t np) {
 		     " (physical)\n"
 	    "#Note: idx, i_so, and i_ph are internal debugging quantities\n");
   chars += fprintf(output, "#Rockstar Version: %s\n", Rockstar_version);
+#ifdef ENABLE_SDF
   chars += fprintf(output, "#libSDF Version: %s\n", libSDF_version);
+#endif
   return chars;
 }
 
