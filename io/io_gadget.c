@@ -19,6 +19,7 @@ void gadget2_detect_filetype(FILE *input, char *filename) {
   int32_t first_word;
   SWAP_ENDIANNESS=0;
   check_fread(&first_word, sizeof(int32_t), 1, input);
+  check_limited_funread(&first_word, sizeof(int32_t), 1);
   if ((first_word != 4) && (first_word != GADGET_HEADER_SIZE) &&
       (first_word != 8)) {
     SWAP_ENDIANNESS = 1;
@@ -31,7 +32,6 @@ void gadget2_detect_filetype(FILE *input, char *filename) {
     fprintf(stderr, "[Error] Unrecognized GADGET2 file type in %s!\n", filename);
     exit(1);
   }
-  rewind(input);
 }
 
 void gadget2_read_stride(FILE *input, int64_t p_start, int64_t nelems, int64_t stride, int64_t width, struct particle *p, int64_t offset, int64_t skip, int64_t skip2, char *filename)
@@ -66,9 +66,10 @@ void gadget2_read_stride(FILE *input, int64_t p_start, int64_t nelems, int64_t s
     }
   }
 
-  check_fseeko(input, (skip*width*stride), SEEK_CUR);
-  buffer = check_realloc(buffer, GADGET_BUFFER_SIZE*stride*width,
-			 "Allocating read buffer.");
+  check_realloc_s(buffer, GADGET_BUFFER_SIZE,stride*width);
+  check_fskip(input, (skip*width*stride), buffer, 
+	      GADGET_BUFFER_SIZE*stride*width);
+
   while (nelems > 0) {
     to_read = nelems;
     if (to_read > GADGET_BUFFER_SIZE) to_read = GADGET_BUFFER_SIZE;
@@ -93,8 +94,9 @@ void gadget2_read_stride(FILE *input, int64_t p_start, int64_t nelems, int64_t s
     p_start += n;
     nelems -= n;
   }
+  check_fskip(input, 4+(skip2*width*stride), buffer, 
+	      GADGET_BUFFER_SIZE*stride*width);
   free(buffer);
-  check_fseeko(input, 4+(skip2*width*stride), SEEK_CUR);
 }
 
 void gadget2_extract_header_info(struct gadget_header *header)

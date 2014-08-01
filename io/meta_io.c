@@ -4,6 +4,7 @@
 #include <strings.h>
 #include <assert.h>
 #include <inttypes.h>
+#include <sys/stat.h>		/* mkdir */
 #include <math.h>
 #include <unistd.h>
 #include "../check_syscalls.h"
@@ -19,6 +20,7 @@
 #include "io_generic.h"
 #include "io_internal.h"
 #include "io_tipsy.h"
+#include "io_sdf.h"
 #include "meta_io.h"
 #include "../distance.h"
 #include "../version.h"
@@ -85,7 +87,10 @@ void get_output_filename(char *buffer, int maxlen, int64_t snap, int64_t chunk, 
   int64_t out = 0;
   snprintf(buffer, maxlen, "%s/", OUTBASE);
   out = strlen(buffer);
-  if (snapnames) snprintf(buffer+out, maxlen-out, "halos_%s", snapnames[snap]);
+  if (snapnames) {
+      mkdir(snapnames[snap], 0777);
+      snprintf(buffer+out, maxlen-out, "%s/halos_%s", snapnames[snap], snapnames[snap]);
+  }
   else snprintf(buffer+out, maxlen-out, "halos_%"PRId64, snap);
   out = strlen(buffer);
   snprintf(buffer+out, maxlen-out, ".%"PRId64".%s", chunk, type);
@@ -113,6 +118,8 @@ void read_particles(char *filename) {
   }
   else if (!strncasecmp(FILE_FORMAT, "TIPSY", 5)) {
     load_particles_tipsy(filename, &p, &num_p);
+  } else if (!strncasecmp(FILE_FORMAT, "SDF", 3)) {
+    load_particles_sdf(filename, SDF_HEADER, &p, &num_p);
   }
   else {
     fprintf(stderr, "[Error] Unknown filetype %s!\n", FILE_FORMAT);
@@ -172,6 +179,7 @@ int _within_bounds(struct halo *h, float *bounds) {
 
 int _should_print(struct halo *h, float *bounds) {
   if (!_within_bounds(h,bounds)) return 0;
+  if (h->flags & ALWAYS_PRINT_FLAG) return 1;
   if ((h->num_p < MIN_HALO_OUTPUT_SIZE) ||
       (h->m * UNBOUND_THRESHOLD >= h->mgrav) ||
       ((h->mgrav < 1.5*PARTICLE_MASS) && UNBOUND_THRESHOLD > 0)) return 0;
@@ -193,6 +201,8 @@ int64_t print_ascii_header_info(FILE *output, float *bounds, int64_t np) {
   chars += fprintf(output, "#Box size: %f Mpc/h\n", BOX_SIZE);
   if (np) chars+=fprintf(output, "#Total particles processed: %"PRId64"\n", np);
   chars += fprintf(output, "#Force resolution assumed: %g Mpc/h\n", FORCE_RES);
+  if (STRICT_SO_MASSES)
+      chars += fprintf(output, "#Using Strict Spherical Overdensity Masses\n");
   chars += fprintf(output, "#Units: Masses in Msun / h\n"
 	  "#Units: Positions in Mpc / h (comoving)\n"
 	  "#Units: Velocities in km / s (physical, peculiar)\n"
@@ -203,7 +213,8 @@ int64_t print_ascii_header_info(FILE *output, float *bounds, int64_t np) {
     chars += fprintf(output, "#Units: Total energy in (Msun/h)*(km/s)^2"
 		     " (physical)\n"
 	    "#Note: idx, i_so, and i_ph are internal debugging quantities\n");
-  chars += fprintf(output, "#Rockstar Version: %s\n", ROCKSTAR_VERSION);
+  chars += fprintf(output, "#Rockstar Version: %s\n", Rockstar_version);
+  chars += fprintf(output, "#libSDF Version: %s\n", libSDF_version);
   return chars;
 }
 
@@ -310,7 +321,7 @@ void output_halos(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
     output_ascii(id_offset, snap, chunk, bounds);
   if (!strcasecmp(OUTPUT_FORMAT, "BOTH") || !strcasecmp(OUTPUT_FORMAT, "BINARY")
       || (TEMPORAL_HALO_FINDING && !LIGHTCONE))
-    output_binary(id_offset, snap, chunk, bounds);
+    output_binary(id_offset, snap, chunk, bounds, 1);
 
   if (chunk<FULL_PARTICLE_CHUNKS) {
     if (!fork()) {

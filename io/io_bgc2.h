@@ -21,7 +21,7 @@ extern struct extended_particle *ep, *ep2;
 extern int64_t num_ep2;
 
 void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds);
-void calc_bgc2_parents(int64_t snap);
+void *calc_bgc2_parents(int64_t snap);
 int64_t check_bgc2_snap(int64_t snap);
 void init_extended_particle_tree(void);
 void free_extended_particle_tree(void);

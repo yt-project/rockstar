@@ -11,6 +11,7 @@ string(MASS_DEFINITION2, "200b");
 string(MASS_DEFINITION3, "200c");
 string(MASS_DEFINITION4, "500c");
 string(MASS_DEFINITION5, "2500c");
+integer(STRICT_SO_MASSES, 0);
 integer(MIN_HALO_OUTPUT_SIZE, 20);
 real(FORCE_RES, 0.003); //In Mpc/h
 real(FORCE_RES_PHYS_MAX, 0);
@@ -29,6 +30,8 @@ integer(RESCALE_PARTICLE_MASS, 0);
 
 real(TIPSY_LENGTH_CONVERSION, 1.0);
 real(TIPSY_VELOCITY_CONVERSION, 1.0);
+
+string(SDF_HEADER, "");
 
 integer(PARALLEL_IO, 0);
 string(PARALLEL_IO_SERVER_ADDRESS, "auto");

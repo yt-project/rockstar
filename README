@@ -27,7 +27,7 @@ Contents:
    non-Unix environments.  (Mac OS X is fine; Windows is not).
 
 2) Running
-   i) Quick start (single snapshot):
+   i) Quick start (single snapshot, single CPU):
       Several example configuration files have been provided.  If you have a
       small simulation file and you'd like to run Rockstar on a single processor
       to test its output, edit the file "quickstart.cfg" and change the file
@@ -56,7 +56,7 @@ Contents:
       Note that periodic boundary conditions are *not* assumed for a single-cpu
       run.  (For that, see the section on parallel IO).
 
-   ii) More complete setup (multiple snapshots/input files):
+   ii) More complete setup (multiple snapshots/input files, multiple CPUs):
       Note: Rockstar does *not* use MPI for its parallelization.  As such,
       there should be no headaches with finding a working MPI installation
       to use. :)
@@ -325,6 +325,21 @@ Contents:
       masses relative to the critical or background density, respectively.
       (E.g. "200b" or "200c", or even "1600b").
 
+      Note that, by default, all masses are calculated from FOF groups after
+      unbound particles are removed.  This is appropriate for merger trees,
+      where halos/subhalos need to be treated identically for consistency
+      across timesteps.  However, if you are calculating *mass functions*,
+      you will want to use spherical overdensities including unbound particles
+      and particles which may exist outside of the FOF group for the halo.
+      To enable these strict SO masses, use
+
+          STRICT_SO_MASSES = 1 # default: 0
+
+      The resulting masses will be present in the auxilliary mass columns
+      (columns 20-24).
+
+      Options to set the cosmology are available:
+
           SCALE_NOW = <current cosmological scale factor>
 	  h0 = <hubble constant today> # in units of 100 km/s/Mpc
 	  Ol = <Omega_Lambda> # in units of the critical density
@@ -332,8 +347,8 @@ Contents:
 
       These cosmology options are only relevant if one is reading from an ASCII
       or TIPSY particle file.  (For TIPSY, the SCALE_NOW parameter may be
-      omitted).  For other data formats, these values are automatically
-      overwritten with values in the particle data files.
+      omitted).  For other data formats, these values are *automatically
+      overwritten* with values in the particle data files.
 
           PARTICLE_MASS = <mass of each particle> #in Msun/h
 
@@ -348,13 +363,10 @@ Contents:
       1e-3 (length conversion for Mpc/h and kpc/h, respectively).
 
       Similarly, for TIPSY files, you will need to convert lengths and
-      velocities to comoving MPC/h and physical km/s:
+      velocities to comoving Mpc/h and physical km/s:
 
 	  TIPSY_LENGTH_CONVERSION = <conversion from TIPSY units to Mpc/h>
           TIPSY_VELOCITY_CONVERSION = <conversion from TIPSY units to km/s>
-
-      *Note that TIPSY format is in an alpha stage of support---please contact
-       me if you have issues!*
 
       To disable periodic boundary conditions (only applicable for PARALLEL_IO),
       you can set:

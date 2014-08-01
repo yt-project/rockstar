@@ -18,7 +18,7 @@ struct inthash {
 
 
 struct inthash *new_inthash(void);
-void *ih_keylist(struct inthash *ih);
+int64_t *ih_keylist(struct inthash *ih);
 void *ih_getval(struct inthash *ih, int64_t key);
 void ih_setval(struct inthash *ih, int64_t key, void *data);
 void ih_delval(struct inthash *ih, int64_t key);

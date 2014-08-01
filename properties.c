@@ -1,4 +1,13 @@
 #define VMAX_BINS 50
+#include "io/io_generic.h"
+
+float max_halo_radius(struct halo *h) {
+  if (LIGHTCONE) lightcone_set_scale(h->pos);
+  float thresh_dens = particle_thresh_dens[min_dens_index]*PARTICLE_MASS;
+  float m = (min_dens_index) ? h->alt_m[min_dens_index-1] : h->m;
+  return(cbrt((3.0/(4.0*M_PI))*m/thresh_dens)*1e3);
+}
+
 
 void _populate_mass_bins(struct halo *h, struct halo *cur_h, int64_t *bins, int64_t num_bins, float r_scale, int64_t children) {
   int64_t i, j, child, first_child, bin;
@@ -94,9 +103,6 @@ void calc_basic_halo_props(struct halo *h) {
   if (h->vmax_r) h->r = h->vmax_r;
   //h->r = h->child_r;
   h->vrms = sqrt(h->vrms);
-
-  //If we have a set of generic functions, call them.
-  if(analyze_halo_generic != NULL) analyze_halo_generic(h, copies + h->p_start);
 }
 
 void add_ang_mom(double L[3], float c[6], float pos[6]) {
@@ -355,7 +361,6 @@ void _calc_additional_halo_props(struct halo *h, int64_t total_p, int64_t bound)
   }
 }
 
-
 //Assumes center + velocity already calculated.
 void calc_additional_halo_props(struct halo *h) {
   int64_t j, total_p;
@@ -388,4 +393,5 @@ void calc_additional_halo_props(struct halo *h) {
 
   _calc_additional_halo_props(h, total_p, 0);
   _calc_additional_halo_props(h, total_p, 1);
+  if (analyze_halo_generic != NULL) analyze_halo_generic(h, po, total_p);
 }

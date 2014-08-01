@@ -357,8 +357,8 @@ void find_halos(int64_t snap) {
     load_balance();
     if (server_error_state) return;
 
-    if (check_bgc2_snap(snap)) {
-      timed_output("Generating BGC2 files...\n");
+    if (check_bgc2_snap(snap) || STRICT_SO_MASSES) {
+      timed_output("Generating BGC2 files/SO Masses...\n");
       command_writers("hbnds");
       for_writers(i) recv_from_socket(clients[i].cs, clients[i].halo_bounds,
 				      sizeof(float)*6);

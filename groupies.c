@@ -49,6 +49,7 @@ int64_t *halo_ids = NULL;
 int64_t num_alloced_halo_ids = 0;
 
 double particle_thresh_dens[5] = {0}, particle_rvir_dens = 0;
+int64_t min_dens_index = 0;
 double dynamical_time = 0;
 
 double vir_density(double a) {
@@ -78,6 +79,7 @@ float _calc_mass_definition(char **md) {
 
 void calc_mass_definition(void) {
   char *vir = "vir";
+  int64_t i;
   particle_thresh_dens[0] = _calc_mass_definition(&MASS_DEFINITION);
   particle_thresh_dens[1] = _calc_mass_definition(&MASS_DEFINITION2);
   particle_thresh_dens[2] = _calc_mass_definition(&MASS_DEFINITION3);
@@ -85,6 +87,10 @@ void calc_mass_definition(void) {
   particle_thresh_dens[4] = _calc_mass_definition(&MASS_DEFINITION5);
   particle_rvir_dens = _calc_mass_definition(&vir);
   dynamical_time = 1.0/sqrt((4.0*M_PI*Gc/3.0)*particle_rvir_dens*PARTICLE_MASS);
+  min_dens_index = 0;
+  for (i=1; i<5; i++) 
+    if (particle_thresh_dens[i] < particle_thresh_dens[min_dens_index])
+      min_dens_index = i;
 }
 
 void lightcone_set_scale(float *pos) {
@@ -95,6 +101,7 @@ void lightcone_set_scale(float *pos) {
   SCALE_NOW = scale_factor(z);
   calc_mass_definition();
 }
+
 
 void add_new_halo(void) {
   int64_t i;

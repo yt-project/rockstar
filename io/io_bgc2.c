@@ -7,17 +7,20 @@
 #include "io_bgc2.h"
 #include "meta_io.h"
 #include "io_util.h"
+#include "io_internal.h"
 #include "../config_vars.h"
 #include "../check_syscalls.h"
 #include "../universal_constants.h"
 #include "../rockstar.h"
 #include "../groupies.h"
 
+
+#define MASS_DEFINITION_INDEX 1	/* m200b masses */
+
 char **bgc2_snapnames = NULL;
 int64_t num_bgc2_snaps = 0;
 GROUP_DATA_RMPVMAX *gd = NULL;
 extern float *particle_r;
-
 extern double particle_thresh_dens[5];
 
 void populate_header(struct bgc2_header *hdr, int64_t id_offset, 
@@ -45,7 +48,7 @@ void populate_header(struct bgc2_header *hdr, int64_t id_offset,
 
   hdr->linkinglength = FOF_LINKING_LENGTH;
   calc_mass_definition();
-  hdr->overdensity = particle_thresh_dens[0] * PARTICLE_MASS / (Om * CRITICAL_DENSITY);
+  hdr->overdensity = particle_thresh_dens[MASS_DEFINITION_INDEX] * PARTICLE_MASS / (Om * CRITICAL_DENSITY);
   hdr->time = SCALE_NOW;
   hdr->redshift = (SCALE_NOW>0) ? (1.0/(SCALE_NOW) - 1.0) : 1e10;
   hdr->Omega0 = Om;
@@ -191,58 +194,65 @@ int64_t check_bgc2_snap(int64_t snap) {
 void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
 {
   char *buffer = NULL;
-  int64_t i, j, k, id=0;
-  FILE *output;
+  int64_t i, j, k, id=0, write_bgc2_file = 0;
+  FILE *output = NULL;
   struct bgc2_header *hdr = NULL;
   PARTICLE_DATA_PV *pd = NULL;
   struct extended_particle temp_p;
   int64_t num_to_print = count_halos_to_print(bounds);
-  double dens_thresh;
+  double dens_thresh[5];
+  int64_t npart = -1;
+  int64_t num_particle_r = 0;
   
-  assert(BGC2_HEADER_SIZE == sizeof(struct bgc2_header));
-  buffer = check_realloc(buffer, 1025, "Allocating output buffer");
-  get_output_filename(buffer, 1024, snap, chunk, "bgc2");
-  output = check_fopen(buffer, "w");
+  write_bgc2_file = check_bgc2_snap(snap);
+  
+  if (write_bgc2_file) {
+    assert(BGC2_HEADER_SIZE == sizeof(struct bgc2_header));
+    check_realloc_s(buffer, 1025, 1);
+    get_output_filename(buffer, 1024, snap, chunk, "bgc2");
+    output = check_fopen(buffer, "w");
+    check_realloc_s(buffer, 0, 0);
+    check_realloc_s(hdr, sizeof(struct bgc2_header), 1);
+    memset(hdr, 0, sizeof(struct bgc2_header));
+    populate_header(hdr, id_offset, snap, chunk, bounds);
+    hdr->ngroups = num_to_print;
+    fwrite_fortran(hdr, BGC2_HEADER_SIZE, 1, output);
+    if (!num_to_print) {
+      fclose(output);
+      free(hdr);
+      free(buffer);
+      return;
+    }
 
-  hdr = check_realloc(hdr, sizeof(struct bgc2_header),"Allocating BGC2 header");
-  populate_header(hdr, id_offset, snap, chunk, bounds);
-  hdr->ngroups = num_to_print;
-  fwrite_fortran(hdr, BGC2_HEADER_SIZE, 1, output);
-  if (!num_to_print) {
-    fclose(output);
-    free(hdr);
-    free(buffer);
-    return;
+    check_realloc_s(gd, sizeof(GROUP_DATA_RMPVMAX), num_to_print);
+    fwrite_fortran(gd, sizeof(GROUP_DATA_RMPVMAX), num_to_print, output);
   }
 
-  gd = check_realloc(gd, sizeof(GROUP_DATA_RMPVMAX)*num_to_print,
-		     "Allocating output halo buffer");
-
-  fwrite_fortran(gd, sizeof(GROUP_DATA_RMPVMAX), num_to_print, output);
-
-  dens_thresh = particle_thresh_dens[0]*(4.0*M_PI/3.0);
+  for (i=0; i<5; i++)
+    dens_thresh[i] = particle_thresh_dens[i]*(4.0*M_PI/3.0)*PARTICLE_MASS;
   if (num_ep2) {
-    ep_tree2 = fast3tree_init(num_ep2, ep2);    
+    ep_tree2 = fast3tree_init(num_ep2, ep2);
     if (BOX_SIZE > 0 && PERIODIC) _fast3tree_set_minmax(ep_tree2, 0, BOX_SIZE);
   }
 
   for (i=0; i<num_halos; i++) {
     if (!_should_print(halos+i, bounds)) continue;
+    halos[i].flags |= ALWAYS_PRINT_FLAG;
     
+    float r = BGC2_R * halos[i].r;
+    if (STRICT_SO_MASSES) r = BGC2_R*max_halo_radius(halos+i);
     if (num_ep2) {
       if (BOX_SIZE > 0 && PERIODIC) 
-	fast3tree_find_sphere_periodic(ep_tree2, ep_res, halos[i].pos,
-				       halos[i].r*BGC2_R);
+	fast3tree_find_sphere_periodic(ep_tree2, ep_res, halos[i].pos, r);
       else
-	fast3tree_find_sphere(ep_tree2, ep_res, halos[i].pos,halos[i].r*BGC2_R);
+	fast3tree_find_sphere(ep_tree2, ep_res, halos[i].pos, r);
     }
     else ep_res->num_points = 0;
-    _fast3tree_find_sphere(ep_tree->root, ep_res, halos[i].pos,
-			   halos[i].r*BGC2_R);
+    _fast3tree_find_sphere(ep_tree->root, ep_res, halos[i].pos, r);
 
-    if (ep_res->num_points > hdr->max_npart)
-      check_realloc_s(particle_r, sizeof(float), ep_res->num_points);
-    for(j=0; j<ep_res->num_points; j++)
+    check_realloc_var(particle_r, sizeof(float), num_particle_r, 
+		      ep_res->num_points);
+    for (j=0; j<ep_res->num_points; j++)
       particle_r[j] = square_dist_from_center(ep_res->points[j], halos[i].pos);
     sort_extended_particles(0, ep_res->num_points, ep_res->points, particle_r);
 
@@ -257,13 +267,24 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
       ep_res->num_points = k;
     }
 	   
-
-    for (j=ep_res->num_points-1; j>=0; j--) {
+    double total_mass = 0;
+    npart = -1;
+    for (j=0; j<ep_res->num_points; j++) {
       float r = sqrt(square_dist_from_center(ep_res->points[j], halos[i].pos));
       if (r < FORCE_RES) r = FORCE_RES;
-      float cur_dens = ((double)(j+1)/(r*r*r));
-      if (cur_dens > dens_thresh) break;
+      total_mass += PARTICLE_MASS;
+      float cur_dens = total_mass/(r*r*r);
+      if (STRICT_SO_MASSES)
+	for (k=1; k<5; k++)
+	  if (cur_dens > dens_thresh[k]) halos[i].alt_m[k-1] = total_mass;
+      if (cur_dens > dens_thresh[MASS_DEFINITION_INDEX]) {
+	if (STRICT_SO_MASSES) halos[i].m = total_mass;
+	npart = j;
+      }
     }
+
+    if (!write_bgc2_file) continue;
+    j = npart;
     if (j<0) {
       j=0; //Almost certainly due to FP imprecision
       ep_res->num_points = 1;
@@ -280,7 +301,7 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
     gd[id].id = id+id_offset;
     gd[id].parent_id = -1;
     gd[id].npart = j+1;
-    gd[id].radius = cbrt((3.0/(4.0*M_PI))*(j+1)/particle_thresh_dens[0]);
+    gd[id].radius = cbrt((3.0/(4.0*M_PI))*(j+1)/particle_thresh_dens[MASS_DEFINITION_INDEX]);
     gd[id].mass = (j+1)*PARTICLE_MASS;
     gd[id].vmax = halos[i].vmax;
     gd[id].rvmax = halos[i].rvmax;
@@ -304,8 +325,7 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
     hdr->npart += gd[id].npart;
     if (gd[id].npart > hdr->max_npart) {
       hdr->max_npart = gd[id].npart;
-      pd = check_realloc(pd, sizeof(struct particle)*hdr->max_npart,
-			 "Allocating particle output buffer.");
+      check_realloc_s(pd, sizeof(PARTICLE_DATA_PV), hdr->max_npart);
     }
 
     for (j=0; j<gd[id].npart; j++) {
@@ -318,7 +338,7 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
 	    pd[j].pos[k] -= BOX_SIZE;
 	  else if ((pd[j].pos[k]-halos[i].pos[k])<-BOX_SIZE/2.0)
 	    pd[j].pos[k] += BOX_SIZE;
-	} 
+	}
 	pd[j].vel[k] = ep_res->points[j]->pos[k+3];
       }
     }
@@ -326,15 +346,20 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
     fwrite_fortran(pd, sizeof(PARTICLE_DATA_PV), gd[id].npart, output);
     id++;
   }
-  rewind(output);
-  fwrite_fortran(hdr, BGC2_HEADER_SIZE, 1, output);
-  fwrite_fortran(gd, sizeof(GROUP_DATA_RMPVMAX), num_to_print, output);
-  fclose(output);
 
-  free(pd);
-  free(buffer);
-  free(hdr);
-  gd = check_realloc(gd, 0, "Freeing group data.");
+  if (STRICT_SO_MASSES)
+    output_binary(id_offset, snap, chunk, bounds, 0);
+
+  if (write_bgc2_file) {
+    rewind(output);
+    fwrite_fortran(hdr, BGC2_HEADER_SIZE, 1, output);
+    fwrite_fortran(gd, sizeof(GROUP_DATA_RMPVMAX), num_to_print, output);
+    fclose(output);
+
+    free(hdr);
+    check_realloc_s(pd, 0, 0);
+    check_realloc_s(gd, 0, 0);
+  }
 }
 
 

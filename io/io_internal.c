@@ -80,7 +80,7 @@ inline void _append_to_buffer(void *src, int64_t size, FILE *output) {
   buffered+=size;
 }
 
-void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds) {
+void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds, int64_t output_particles) {
   float max[3]={0}, min[3]={0};
   struct halo tmp;
   char buffer[1024];
@@ -91,7 +91,8 @@ void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds
   if (!output_buffer) check_realloc_s(output_buffer, 1, OUTPUT_BUFFER_SIZE);
 
   get_output_filename(buffer, 1024, snap, chunk, "bin");
-  output = check_fopen(buffer, "wb");
+  if (output_particles) output = check_fopen(buffer, "wb");
+  else output = check_fopen(buffer, "r+b");
 
   memset(&bheader, 0, sizeof(struct binary_output_header));
   _append_to_buffer(&bheader, sizeof(struct binary_output_header), output);
@@ -117,10 +118,12 @@ void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds
   }
 
   //Output Particles
-  for (i=0; i<num_halos; i++) {
-    if (!_should_print(halos+i, bounds)) continue;
-    for (j=0; j<halos[i].num_p; j++)
-      _append_to_buffer(&(p[halos[i].p_start+j].id), sizeof(int64_t), output);
+  if (output_particles) {
+    for (i=0; i<num_halos; i++) {
+      if (!_should_print(halos+i, bounds)) continue;
+      for (j=0; j<halos[i].num_p; j++)
+	_append_to_buffer(&(p[halos[i].p_start+j].id), sizeof(int64_t), output);
+    }
   }
   _clear_buffer(output);
 
@@ -135,7 +138,6 @@ void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds
   check_fwrite(&bheader, sizeof(struct binary_output_header), 1, output);
   fclose(output);  
 }
-
 
 void load_binary_header(int64_t snap, int64_t chunk, 
 			struct binary_output_header *bheader) {

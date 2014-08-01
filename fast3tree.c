@@ -61,6 +61,7 @@
 #include <string.h>
 #include <math.h>
 #include <inttypes.h>
+#include <unistd.h>
 #include <assert.h>
 
 #ifndef FAST3TREE_PREFIX
@@ -772,12 +773,22 @@ void _fast3tree_maxmin_rebuild(struct tree3_node *n) {
 #undef _fast3tree_check_realloc
 #define _fast3tree_check_realloc _F3TN(FAST3TREE_PREFIX,_fast3tree_check_realloc)
 void *_fast3tree_check_realloc(void *ptr, size_t size, char *reason) {
-  void *res = realloc(ptr, size);
-  if ((res == NULL) && (size > 0)) {
-    fprintf(stderr, "[Error] Failed to allocate memory (%s)!\n", reason);
-    exit(1);
+  if (size > 0) {
+      int iter = 0;
+      void *res;
+      while (!(res = realloc(ptr, size))) {
+	  fprintf(stderr, "[Warning] Failed to allocate %ld Mbytes (%s)!\n", size, reason);
+	  /* sometimes works on multicore nodes with no swap */
+	  sleep(30);
+	  if (++iter > 20) {
+	      fprintf(stderr, "[Error] Failed to allocate memory (%s)!\n", reason);
+	      exit(1);
+	  }
+      }
+      return res;
   }
-  return res;
+  if (ptr != NULL) free(ptr);
+  return NULL;
 }
 
 
