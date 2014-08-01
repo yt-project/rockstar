@@ -12,10 +12,10 @@
     b_to_a, c_to_a, A[3], klypin_rs, kin_to_pot, m_all;
 #include "read_tree.h"
 
-THREADSAFE double BOX_SIZE=250;
+double BOX_SIZE=250;
 
-THREADSAFE struct halo_list all_halos = {0};
-THREADSAFE struct halo_tree halo_tree = {0};
+struct halo_list all_halos = {0};
+struct halo_tree halo_tree = {0};
 
 #define GROUP_LIST all_halos.halos
 #define RADIUS rvir

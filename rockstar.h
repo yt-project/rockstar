@@ -13,11 +13,11 @@
 #define MIN_WORKUNIT 5000000
 #define LARGE_FOF (MIN_WORKUNIT / sizeof(struct particle))
 
-extern THREADSAFE struct particle *p;
-extern THREADSAFE struct bparticle *bp;
-extern THREADSAFE int64_t num_p, num_bp, num_additional_p;
-extern THREADSAFE int64_t num_all_fofs;
-extern THREADSAFE struct fof *all_fofs;
+extern struct particle *p;
+extern struct bparticle *bp;
+extern int64_t num_p, num_bp, num_additional_p;
+extern int64_t num_all_fofs;
+extern struct fof *all_fofs;
 
 struct workunit_info {
   int64_t num_fofs, num_halos, num_particles, chunk;

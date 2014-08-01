@@ -8,8 +8,8 @@
 #define Omega_M Om
 #define Omega_L Ol
 #define h h0
-THREADSAFE double Dh;
-THREADSAFE double _Dc[TOTAL_BINS];
+double Dh;
+double _Dc[TOTAL_BINS];
 
 #ifndef __APPLE__
 #ifndef isfinite

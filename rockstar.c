@@ -39,17 +39,17 @@
 #include "fast3tree.c"
 #define SKIP_THRESH 16
 
-THREADSAFE struct particle *p = NULL;
-THREADSAFE struct particle *original_p = NULL;
-THREADSAFE struct bparticle *bp = NULL;
-THREADSAFE int64_t num_p = 0, num_bp = 0, num_additional_p = 0;
-THREADSAFE struct fast3tree *tree = NULL;
-THREADSAFE struct fast3tree_results *rockstar_res = NULL;
-THREADSAFE char *skip = NULL;
-THREADSAFE struct fof *all_fofs = NULL;
-THREADSAFE int64_t num_all_fofs = 0, num_bfofs = 0, num_metafofs = 0;
-THREADSAFE int64_t num_fofs_tosend = 0;
-THREADSAFE int64_t *fof_order = NULL;
+struct particle *p = NULL;
+struct particle *original_p = NULL;
+struct bparticle *bp = NULL;
+int64_t num_p = 0, num_bp = 0, num_additional_p = 0;
+struct fast3tree *tree = NULL;
+struct fast3tree_results *rockstar_res = NULL;
+char *skip = NULL;
+struct fof *all_fofs = NULL;
+int64_t num_all_fofs = 0, num_bfofs = 0, num_metafofs = 0;
+int64_t num_fofs_tosend = 0;
+int64_t *fof_order = NULL;
 
 void rockstar(float *bounds, int64_t manual_subs) {
   int64_t i;

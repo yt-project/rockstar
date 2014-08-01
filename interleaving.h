@@ -16,13 +16,13 @@ struct bgroup {
   int64_t next, head;
 };
 
-extern THREADSAFE int64_t num_new_bp;
-extern THREADSAFE struct bgroup *bg;
-extern THREADSAFE struct bgroup *final_bg;
-extern THREADSAFE int64_t num_bg_sets;
-extern THREADSAFE int64_t *bg_set_sizes;
-extern THREADSAFE int64_t *bg_set_indices;
-extern THREADSAFE int64_t our_chunk;
+extern int64_t num_new_bp;
+extern struct bgroup *bg;
+extern struct bgroup *final_bg;
+extern int64_t num_bg_sets;
+extern int64_t *bg_set_sizes;
+extern int64_t *bg_set_indices;
+extern int64_t our_chunk;
 
 void set_bp_chunk(int64_t chunk);
 void clear_bp_data(void);

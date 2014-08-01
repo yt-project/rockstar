@@ -8,8 +8,8 @@
 #include "../groupies.h"
 #include "../check_syscalls.h"
 
-THREADSAFE void *output_buffer = NULL;
-THREADSAFE int64_t buffered = 0;
+void *output_buffer = NULL;
+int64_t buffered = 0;
 
 void fill_binary_header(struct binary_output_header *bh,
 			int64_t snap, int64_t chunk) {

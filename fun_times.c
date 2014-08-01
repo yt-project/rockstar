@@ -18,18 +18,18 @@
 #define FAST3TREE_PREFIX FUN_TIMES
 #include "fast3tree.c"
 
-THREADSAFE struct previous_halo *ph = NULL;
-THREADSAFE int64_t prev_snap = -1;
-THREADSAFE int64_t num_prev_halos = 0;
-THREADSAFE struct halo *prev_halo_buffer = NULL;
-THREADSAFE struct fast3tree *phtree = NULL;
-THREADSAFE struct fast3tree_results *phtree_res = NULL;
-THREADSAFE void **prev_files = NULL;
-THREADSAFE int64_t *prev_file_lengths = NULL;
-THREADSAFE int64_t *prev_chunks = NULL;
-THREADSAFE int64_t num_prev_files = 0;
-THREADSAFE int64_t max_num_p = 0;
-THREADSAFE struct prev_bounds *p_bounds = NULL;
+struct previous_halo *ph = NULL;
+int64_t prev_snap = -1;
+int64_t num_prev_halos = 0;
+struct halo *prev_halo_buffer = NULL;
+struct fast3tree *phtree = NULL;
+struct fast3tree_results *phtree_res = NULL;
+void **prev_files = NULL;
+int64_t *prev_file_lengths = NULL;
+int64_t *prev_chunks = NULL;
+int64_t num_prev_files = 0;
+int64_t max_num_p = 0;
+struct prev_bounds *p_bounds = NULL;
 
 
 static inline void add_to_previous_halos(struct halo *h, struct binary_output_header *bh, void *file) {

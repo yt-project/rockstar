@@ -31,22 +31,22 @@
 
 #define CLIENT_DEBUG 0
 
-extern THREADSAFE struct rsocket *rsockets;
+extern struct rsocket *rsockets;
 
-THREADSAFE struct recipient *recipients = NULL;
-THREADSAFE int64_t num_recipients = 0;
-THREADSAFE int64_t *part_ids = NULL;
-THREADSAFE int64_t *part_id_buffer = NULL;
-THREADSAFE int64_t num_buffer_part_ids = 0;
+struct recipient *recipients = NULL;
+int64_t num_recipients = 0;
+int64_t *part_ids = NULL;
+int64_t *part_id_buffer = NULL;
+int64_t num_buffer_part_ids = 0;
 
-THREADSAFE struct chunk_info *chunk_info = NULL;
-THREADSAFE struct projection *prj = NULL;
-THREADSAFE struct projection_request *prq = NULL;
-THREADSAFE int64_t num_proj = 0;
-THREADSAFE int64_t in_error_state = 0;
-THREADSAFE int64_t RECIPIENT_BUFFER=100000;
+struct chunk_info *chunk_info = NULL;
+struct projection *prj = NULL;
+struct projection_request *prq = NULL;
+int64_t num_proj = 0;
+int64_t in_error_state = 0;
+int64_t RECIPIENT_BUFFER=100000;
 
-THREADSAFE FILE *profile_out = NULL;
+FILE *profile_out = NULL;
 
 void network_io_err(int64_t s) {
   if (in_error_state) return;

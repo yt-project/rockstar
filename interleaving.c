@@ -15,19 +15,19 @@
 #define FAST3TREE_TYPE struct bparticle
 #include "fast3tree.c"
 
-THREADSAFE struct fast3tree *bp_tree = NULL;
-THREADSAFE struct fast3tree_results *bp_res = NULL;
-THREADSAFE struct bgroup *bg = NULL;
-THREADSAFE int64_t num_bg = 0;
-THREADSAFE int64_t max_gid, our_chunk;
-THREADSAFE struct inthash *bg_ih = NULL;
-THREADSAFE int64_t num_new_bp = 0;
+struct fast3tree *bp_tree = NULL;
+struct fast3tree_results *bp_res = NULL;
+struct bgroup *bg = NULL;
+int64_t num_bg = 0;
+int64_t max_gid, our_chunk;
+struct inthash *bg_ih = NULL;
+int64_t num_new_bp = 0;
 
-THREADSAFE struct bgroup *final_bg = NULL;
-THREADSAFE int64_t num_bg_sets = 0;
-THREADSAFE int64_t *bg_set_sizes = NULL;
-THREADSAFE int64_t *bg_set_indices = NULL;
-THREADSAFE int64_t *num_new_groups = NULL;
+struct bgroup *final_bg = NULL;
+int64_t num_bg_sets = 0;
+int64_t *bg_set_sizes = NULL;
+int64_t *bg_set_indices = NULL;
+int64_t *num_new_groups = NULL;
 
 void set_bp_chunk(int64_t chunk) {
   our_chunk = chunk;

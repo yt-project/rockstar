@@ -15,8 +15,8 @@ struct prev_bounds {
   float bounds[6];
 };
 
-extern THREADSAFE struct prev_bounds *p_bounds;
-extern THREADSAFE int64_t prev_snap;
+extern struct prev_bounds *p_bounds;
+extern int64_t prev_snap;
 
 #define MAX_CORE_PARTICLES 10000
 #define PREV_HALO_BUFFER_SIZE 100000

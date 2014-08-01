@@ -14,10 +14,10 @@
 
 #define INV_RADIUS_WEIGHTING -0.2 //Forces divisions along the radius dimension
 
-THREADSAFE struct fast3tree *subtree = NULL;
-THREADSAFE struct halo_metric *sub_metric = NULL;
-THREADSAFE struct fast3tree_results *subtree_res = NULL;
-THREADSAFE int64_t alloced_metrics = 0;
+struct fast3tree *subtree = NULL;
+struct halo_metric *sub_metric = NULL;
+struct fast3tree_results *subtree_res = NULL;
+int64_t alloced_metrics = 0;
 
 void build_subtree(struct halo **subs, int64_t num_subs) {
   int64_t i;

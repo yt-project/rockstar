@@ -21,12 +21,12 @@
 #include "config.h"
 #include "bounds.h"
 
-THREADSAFE float chunk_size[3];
-THREADSAFE int64_t chunks[3];
-THREADSAFE struct client_info *clients = NULL;
-THREADSAFE int64_t num_clients = 0;
-THREADSAFE int64_t time_start = 0;
-THREADSAFE int64_t server_error_state = 0;
+float chunk_size[3];
+int64_t chunks[3];
+struct client_info *clients = NULL;
+int64_t num_clients = 0;
+int64_t time_start = 0;
+int64_t server_error_state = 0;
 
 #define for_writers(x) for (x=NUM_READERS; x<num_clients; x++)
 

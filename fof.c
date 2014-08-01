@@ -7,14 +7,14 @@
 #include "particle.h"
 #include "config_vars.h"
 
-THREADSAFE struct fof *fofs = NULL;
-THREADSAFE struct smallfof *smallfofs = NULL;
-THREADSAFE int64_t num_fofs=0, num_alloced_fofs = 0, 
+struct fof *fofs = NULL;
+struct smallfof *smallfofs = NULL;
+int64_t num_fofs=0, num_alloced_fofs = 0, 
   num_smallfofs = 0, num_alloced_smallfofs = 0;
-THREADSAFE struct particle *root_p = 0;
-THREADSAFE int64_t *particle_smallfofs = NULL;
-THREADSAFE int64_t num_particles = 0, num_alloced_particles = 0;
-THREADSAFE int64_t num_boundary_fofs = 0;
+struct particle *root_p = 0;
+int64_t *particle_smallfofs = NULL;
+int64_t num_particles = 0, num_alloced_particles = 0;
+int64_t num_boundary_fofs = 0;
 
 void init_particle_smallfofs(int64_t num_p, struct particle *particles) {
   int64_t i;
