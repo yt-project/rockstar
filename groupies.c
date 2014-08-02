@@ -18,7 +18,7 @@
 #include "distance.h"
 #include "fun_times.h"
 #include "jacobi.h"
-#include "io/io_generic.h"
+#include "hubble.h"
 
 #define FAST3TREE_DIM 6
 #define POINTS_PER_LEAF 40
@@ -48,19 +48,20 @@ struct halo **growing_halos = NULL;
 int64_t *halo_ids = NULL;
 int64_t num_alloced_halo_ids = 0;
 
-double particle_thresh_dens[5] = {0}, particle_rvir_dens = 0;
+double particle_thresh_dens[5] = {0}, particle_rvir_dens = 0,
+  particle_rvir_dens_z0 = 0;
 int64_t min_dens_index = 0;
 double dynamical_time = 0;
 
 double vir_density(double a) {
-  double x = 1.0/(1.0+a*a*a*Ol/Om)-1.0;
+  double x = (Om/pow(a,3))/pow(hubble_scaling(1.0/a-1.0),2.0) - 1.0;
   return ((18*M_PI*M_PI + 82.0*x - 39*x*x)/(1.0+x));
 }
 
 float _calc_mass_definition(char **md) {
   int64_t length = strlen(*md);
   char last_char = (length) ? md[0][length-1] : 0;
-  float matter_fraction = 1.0/(1.0+pow(SCALE_NOW, 3)*Ol/Om);
+  float matter_fraction = (Om/pow(SCALE_NOW,3))/pow(hubble_scaling(1.0/SCALE_NOW-1.0),2.0);
   float cons = Om * CRITICAL_DENSITY / PARTICLE_MASS; // background density
   char *mass = *md;
   float thresh_dens;
@@ -74,6 +75,7 @@ float _calc_mass_definition(char **md) {
     if (strcasecmp(*md, "vir")) *md = "vir";
     thresh_dens = vir_density(SCALE_NOW) * cons;
   }
+  particle_rvir_dens_z0 = vir_density(1.0) * cons;
   return thresh_dens;
 }
 
@@ -202,6 +204,7 @@ void _find_subfofs_at_r(struct fof *f, float target_r) {
 void _find_subfofs_better2(struct fof *f,  float thresh) {
   int64_t i, j, num_test = MAX_PARTICLES_TO_SAMPLE;
   float target_r = 0;
+  if (EXACT_LL_CALC) num_test = f->num_p;
   norm_sd(f, thresh);
   fast3tree_rebuild(phasetree, f->num_p, f->particles);
   if (num_test > f->num_p) num_test = f->num_p;
@@ -527,22 +530,15 @@ void find_subs(struct fof *f) {
   memcpy(f->particles, copies, sizeof(struct particle)*f->num_p);
   for (i=h_start; i<num_halos; i++)
     halos[i].p_start += (f->particles - p);
-  fast3tree_free(&phasetree);
 }
 
 
 void alloc_particle_copies(int64_t total_copies) {
-  int64_t max_particle_r = MAX_PARTICLES_TO_SAMPLE;
   if (total_copies - num_alloc_pc < 1000) total_copies = num_alloc_pc + 1000;
-  copies = check_realloc(copies, sizeof(struct particle)*total_copies,
-			 "Allocating room for particle copies.");
-  particle_halos = check_realloc(particle_halos, sizeof(int64_t)*total_copies,
-			 "Allocating room for particle halo-links.");
-  if (max_particle_r > total_copies) max_particle_r = total_copies;
-  particle_r = check_realloc(particle_r, sizeof(float)*max_particle_r,
-			 "Allocating room for particle radii.");
-  po = check_realloc(po, sizeof(struct potential)*total_copies,
-			"Allocating room for particle distances.");
+  check_realloc_s(copies, sizeof(struct particle), total_copies);
+  check_realloc_s(particle_halos, sizeof(int64_t), total_copies);
+  check_realloc_s(particle_r, sizeof(float), total_copies);
+  check_realloc_s(po, sizeof(struct potential), total_copies);
   num_alloc_pc = total_copies;
 }
 
