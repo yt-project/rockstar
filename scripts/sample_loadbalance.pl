@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+#Note for non-Perl users: "scalar <>" returns a single line from STDIN.
 #This script implements an equal-volume load balancer for Rockstar
 my ($num_writers) = split(/ /, scalar <>);
 print STDERR "[Loadbalance] Num writers: $num_writers\n";

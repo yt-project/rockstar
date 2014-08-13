@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <strings.h>
 #include <inttypes.h>
 #include <ctype.h>
 #include "read_config.h"
@@ -50,11 +51,17 @@ inline static char *_config_to_string(struct configfile *c, char *key) {
 }
 
 void syntax_check(struct configfile *c, char *prefix) {
-  int i;
+  int i, j;
   char *space = prefix ? " " : "";
+  char *complaint;
   for (i=0; i<c->num_entries; i++) {
     if (!(c->touched[i]) && strlen(c->keys[i])) {
-      fprintf(stderr, "%s%sConfig variable \"%s\" not understood; please verify spelling.\n", (prefix ? prefix : ""), space, c->keys[i]);
+      for (j=0; j<c->num_entries; j++)
+	if (i!=j && !strcasecmp(c->keys[i], c->keys[j])) break;
+      if (j<c->num_entries)
+	complaint = "%s%sDuplicate config variable \"%s\". Second and further instances ignored.\n";
+      else complaint = "%s%sConfig variable \"%s\" not understood; please verify spelling.\n";
+      fprintf(stderr, complaint, (prefix ? prefix : ""), space, c->keys[i]);
     }
   }
 }

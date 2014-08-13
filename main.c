@@ -92,6 +92,11 @@ int main(int argc, char **argv)
       SINGLE_SNAP = 1;
     }
     if ((NUM_WRITERS != 1) && PERIODIC) check_num_writers();
+    else if (NUM_WRITERS==1 && PERIODIC && PARALLEL_IO) {
+      fprintf(stderr, "[Warning] Setting PERIODIC=0 since NUM_WRITERS=1.\n");
+      fprintf(stderr, "[Warning] To enable periodic boundary conditions, increase NUM_WRITERS to at least 8.\n");
+      PERIODIC = 0;
+    }
     s = server();
     if (!s) client(-1);
   }

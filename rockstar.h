@@ -12,6 +12,7 @@
 
 #define MIN_WORKUNIT 5000000
 #define LARGE_FOF (MIN_WORKUNIT / sizeof(struct particle))
+#define FOF_SKIP_THRESH 16
 
 extern struct particle *p;
 extern struct bparticle *bp;

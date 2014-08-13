@@ -12,7 +12,7 @@
 
 GROUP_DATA_RMPVMAX *grps = NULL;
 PARTICLE_DATA_PV *parts = NULL;
-int64_t num_g=0, num_p=0;
+int64_t num_groups=0, num_parts=0;
 
 void load_bgc2(char *filename, struct bgc2_header *hdr,
 	       GROUP_DATA_RMPVMAX **groups, int64_t *num_groups,

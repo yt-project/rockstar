@@ -44,7 +44,7 @@ struct projection *prj = NULL;
 struct projection_request *prq = NULL;
 int64_t num_proj = 0;
 int64_t in_error_state = 0;
-int64_t RECIPIENT_BUFFER=10000;
+int64_t RECIPIENT_BUFFER=100000;
 
 FILE *profile_out = NULL;
 
@@ -113,6 +113,23 @@ void calc_particle_bounds(float *bounds) {
 	bounds[j] = p[i].pos[j];
       if (bounds[j+3] < p[i].pos[j]) 
 	bounds[j+3] = p[i].pos[j];
+    }
+  }
+}
+
+void calc_particle_bounds_periodic(float *bounds) {
+  int64_t i,j;
+  for (j=0; j<6; j++) bounds[j]=0;
+  if (!num_p) return;
+  memcpy(bounds, p[0].pos, sizeof(float)*3);
+  memcpy(bounds+3, p[0].pos, sizeof(float)*3);
+  for (i=1; i<num_p; i++) {
+    for (j=0; j<3; j++) {
+      float pos = p[i].pos[j];
+      if (p[0].pos[j]-pos > BOX_SIZE/2.0) pos+=BOX_SIZE;
+      else if (p[0].pos[j]-pos < -BOX_SIZE/2.0) pos-=BOX_SIZE;
+      if (bounds[j] > pos) bounds[j] = pos;
+      if (bounds[j+3] < pos) bounds[j+3] = pos;
     }
   }
 }
@@ -272,7 +289,11 @@ void send_config(int64_t c) {
   snd(Ol);
   snd(Om);
   snd(h0);
-  snd(FORCE_RES);
+  snd(TRIM_OVERLAP);
+  snd(ROUND_AFTER_TRIM);
+  /* Following might also be modified in load_particles() */
+  snd(FORCE_RES);		
+  snd(FORCE_RES_PHYS_MAX);
   snd(LIGHTCONE_ORIGIN[0]);
   snd(LIGHTCONE_ORIGIN[1]);
   snd(LIGHTCONE_ORIGIN[2]);
@@ -292,7 +313,10 @@ void recv_config(int64_t c) {
   rcv(Ol);
   rcv(Om);
   rcv(h0);
+  rcv(TRIM_OVERLAP);
+  rcv(ROUND_AFTER_TRIM);
   rcv(FORCE_RES);
+  rcv(FORCE_RES_PHYS_MAX);
   rcv(LIGHTCONE_ORIGIN[0]);
   rcv(LIGHTCONE_ORIGIN[1]);
   rcv(LIGHTCONE_ORIGIN[2]);
@@ -730,10 +754,6 @@ void transfer_stuff(int64_t s, int64_t c, int64_t timestep) {
 	  }
 	}
 
-	//	else if (!strcmp(cmd, "mass")) {
-	//	  recv_from_socket(i, halos, sizeof(struct halo)*num_halos);
-	//	}
-
 	else if (!strcmp(cmd, "cnfg")) {
 	  recv_config(i);
 	}
@@ -879,8 +899,10 @@ void accept_workloads(char *c_address, char *c_port, int64_t snap, int64_t chunk
 	  }
 	  close_rsocket(m2);
 	}
-	if (memcmp(w.bounds, zero_bounds, sizeof(float)*6)!=0)
-	  calc_particle_bounds(w.bounds);
+	if (memcmp(w.bounds, zero_bounds, sizeof(float)*6)!=0) {
+	  if (!PERIODIC || !BOX_SIZE) calc_particle_bounds(w.bounds);
+	  else calc_particle_bounds_periodic(w.bounds);
+	}
 	new_bounds = 1;
 	assert(!dup_ids);
       }
@@ -1195,7 +1217,7 @@ void client(int64_t type) {
   //struct recipient *r;
   int64_t c, s = -1, portnum, readers;
   int64_t num_nodes;
-  int stat_loc = 0;
+  //int stat_loc = 0;
 
   clear_merger_tree();
   if (FORK_READERS_FROM_WRITERS) {
@@ -1219,7 +1241,7 @@ void client(int64_t type) {
   }
 
   srand(getpid()); /* so rand() in random_sleep() is different across procs */
-  if (NUM_WRITERS >= 512) random_sleep(5);
+  random_sleep(5*(NUM_WRITERS+NUM_READERS)/512);
   c = connect_to_addr(PARALLEL_IO_SERVER_ADDRESS, PARALLEL_IO_SERVER_PORT);
   recv_from_socket(c, &magic, sizeof(uint64_t));
   if (magic != ROCKSTAR_MAGIC) {
@@ -1244,12 +1266,12 @@ void client(int64_t type) {
     else if (!strcmp(cmd, "writ")) {
       type = WRITER_TYPE;
       hostname = recv_msg_nolength(c, hostname);
-      for (i=0; i<5000 && s<0; i+=29) {
+      for (i=0; i<10000 && s<0; i+=29) {
 	portnum = PARALLEL_IO_WRITER_PORT+i;
 	snprintf(port, 10, "%"PRId64, portnum);
 	s = listen_at_addr(hostname, port);
       }
-      if (i>=5000) {
+      if (i>=10000) {
 	fprintf(stderr, "[Error] Couldn't start particle data server at %s:%d-%d!\n",
 		hostname, (int)PARALLEL_IO_WRITER_PORT, (int)portnum);
 	exit(1);
@@ -1533,7 +1555,6 @@ void client(int64_t type) {
 	send_to_socket(c, "fail", 4);
 	return;
       }
-      wait(&stat_loc); //*Should* be ECHILD, but on Mac OS X is necessary...
       send_to_socket(c, "done", 4);
     }
     

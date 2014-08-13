@@ -6,9 +6,9 @@
 
 #define CMAX ((1<<8)-1)
 
-//Note that X must be a character array!
 #define BIT_ALLOC(n) (char *)check_realloc(NULL, ((n)/(int64_t)8)+1, "bit array");
 
+//Note that X must be a character array!
 #define BIT_ALL_CLEAR(x,n) memset(x, 0, ((n)/(int64_t)8)+1)
 
 //Set bit Y in bitarray X to 1

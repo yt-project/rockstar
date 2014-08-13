@@ -14,9 +14,6 @@
 #include "../rockstar.h"
 #include "../groupies.h"
 
-
-#define MASS_DEFINITION_INDEX 1	/* m200b masses */
-
 char **bgc2_snapnames = NULL;
 int64_t num_bgc2_snaps = 0;
 GROUP_DATA_RMPVMAX *gd = NULL;
@@ -48,7 +45,7 @@ void populate_header(struct bgc2_header *hdr, int64_t id_offset,
 
   hdr->linkinglength = FOF_LINKING_LENGTH;
   calc_mass_definition();
-  hdr->overdensity = particle_thresh_dens[MASS_DEFINITION_INDEX] * PARTICLE_MASS / (Om * CRITICAL_DENSITY);
+  hdr->overdensity = particle_thresh_dens[0] * PARTICLE_MASS / (Om * CRITICAL_DENSITY);
   hdr->time = SCALE_NOW;
   hdr->redshift = (SCALE_NOW>0) ? (1.0/(SCALE_NOW) - 1.0) : 1e10;
   hdr->Omega0 = Om;
@@ -66,8 +63,8 @@ void convert_to_extended_particles(struct extended_particle *ep) {
   int64_t i,j;
   p = (void *)ep;
   for (i=num_p+num_additional_p-1; i>=0; i--) {
-    ep[i].hid = -1;
     memmove(ep[i].pos, p[i].pos, sizeof(float)*6);
+    ep[i].hid = -1;
     ep[i].id = p[i].id;
   }
   for (i=0; i<num_halos; i++)
@@ -277,7 +274,7 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
       if (STRICT_SO_MASSES)
 	for (k=1; k<5; k++)
 	  if (cur_dens > dens_thresh[k]) halos[i].alt_m[k-1] = total_mass;
-      if (cur_dens > dens_thresh[MASS_DEFINITION_INDEX]) {
+      if (cur_dens > dens_thresh[0]) {
 	if (STRICT_SO_MASSES) halos[i].m = total_mass;
 	npart = j;
       }
@@ -294,14 +291,14 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
       }
       ep_res->points[0] = &temp_p;
       memcpy(temp_p.pos, halos[i].pos, sizeof(float)*6);
-      temp_p.id = -1-halos[i].id;
+      temp_p.id = -1-id-id_offset;
       temp_p.hid = halos[i].id;
     }
 
     gd[id].id = id+id_offset;
     gd[id].parent_id = -1;
     gd[id].npart = j+1;
-    gd[id].radius = cbrt((3.0/(4.0*M_PI))*(j+1)/particle_thresh_dens[MASS_DEFINITION_INDEX]);
+    gd[id].radius = cbrt((3.0/(4.0*M_PI))*(j+1)/particle_thresh_dens[0]);
     gd[id].mass = (j+1)*PARTICLE_MASS;
     gd[id].vmax = halos[i].vmax;
     gd[id].rvmax = halos[i].rvmax;
@@ -357,7 +354,7 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
     fclose(output);
 
     free(hdr);
-    check_realloc_s(pd, 0, 0);
+    free(pd);
     check_realloc_s(gd, 0, 0);
   }
 }

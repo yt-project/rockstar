@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <float.h>
+#include <assert.h>
 #include "stringparse.h"
 
 #include "strtonum.c"
@@ -62,8 +63,8 @@ static inline int strtowhatever(char *cur_pos, char **end_pos, void *data, enum 
   return 0;
 }
 
-int stringparse(char *buffer, void **data, enum parsetype *types, int max_n) {
-  int num_entries = 0;
+int64_t stringparse(char *buffer, void **data, enum parsetype *types, int64_t max_n) {
+  int64_t num_entries = 0;
   char *cur_pos = buffer, *end_pos;
   if (max_n < 1) return 0;
 
@@ -76,6 +77,28 @@ int stringparse(char *buffer, void **data, enum parsetype *types, int max_n) {
     while (*cur_pos==' ' || *cur_pos=='\t' || *cur_pos=='\n') cur_pos++;
   }
   return num_entries;
+}
+
+int64_t stringparse_format(char *buffer, struct parse_format *pf, int64_t max_n)
+{
+  int64_t num_entries = 0, np = 0;
+  char *cur_pos = buffer, *end_pos;
+  if (max_n < 1) return 0;
+  for (np=max_n-1; np>0; np--) assert(pf[np].index > pf[np-1].index);
+
+  while (*cur_pos==' ' || *cur_pos=='\t' || *cur_pos=='\n') cur_pos++;
+  while ((*cur_pos) && (np < max_n)) {
+    if (num_entries == pf[np].index) {
+      if (!strtowhatever(cur_pos, &end_pos, pf[np].data, pf[np].type)) break;
+      np++;
+    } else {
+      if (!strtowhatever(cur_pos, &end_pos, NULL, PARSE_SKIP)) break;
+    }
+    num_entries++;
+    cur_pos=end_pos;
+    while (*cur_pos==' ' || *cur_pos=='\t' || *cur_pos=='\n') cur_pos++;
+  }
+  return np;
 }
 
 /*

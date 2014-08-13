@@ -28,8 +28,8 @@ int main(int argc, char **argv) {
   printf("#IsSubstructure: 1 if the particle belongs to substructure within the halo; 0 otherwise\n");
   printf("#HaloParent: the ID of a larger halo containing this halo, if any; -1 otherwise\n");
   for (i=1; i<argc; i++) {
-    num_g = num_p = 0;
-    load_bgc2(argv[i], &hdr, &grps, &num_g, &parts, &num_p);
+    num_groups = num_parts = 0;
+    load_bgc2(argv[i], &hdr, &grps, &num_groups, &parts, &num_parts);
     if (i==1) {
       printf("#Box size: %f Mpc/h\n", hdr.box_size);
       printf("#Particle Mass: %f Msun/h\n", hdr.part_mass);
@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     is_sub=k=j=0;
     next_halo_k = k+grps[j].npart;
     halo_sub_k = k+grps[j].npart_self;
-    for (; k<num_p; k++) {
+    for (; k<num_parts; k++) {
       if (k==halo_sub_k) is_sub=1;
       if (k==next_halo_k) {
 	is_sub=0;

@@ -115,6 +115,7 @@ typedef struct {
 } GROUP_DATA_RMPVMAX;
 
 /* Get the size of the GROUP DATA (gdata) structure based on FORMAT number */
+#ifdef BGC2_SIZE
 inline size_t
 bgc_sizeof_gdata( const int64_t gdata_format )
 {
@@ -132,7 +133,7 @@ bgc_sizeof_gdata( const int64_t gdata_format )
     fprintf( stderr, "ERROR: unknown group data format!  (format = %" PRId64 ")\n", gdata_format );
     return 0;
 }
-
+#endif /*BGC2_SIZE*/
 
 enum pdata_format {
     PDATA_FORMAT_NULL = 0,
@@ -147,12 +148,14 @@ enum pdata_format {
     PDATA_FORMAT_GPVM = 50
 };
 
+#ifdef BGC2_SIZE
 inline int
 bgc_format_includes_be( int64_t format_id )
 {
     /* this MUST be kept in sync with the above enum defining the formats */
     return ( format_id % 10 ) == 5;
 }
+#endif /*BGC2_SIZE*/
 
 typedef struct {
     int64_t part_id;
@@ -211,6 +214,7 @@ typedef struct {
 } PARTICLE_DATA_GPVM;
 
 /* Get the size of the PARTICLE DATA (pdata) structure based on FORMAT number */
+#ifdef BGC2_SIZE
 inline size_t
 bgc_sizeof_pdata( const int64_t pdata_format )
 {
@@ -241,6 +245,7 @@ bgc_sizeof_pdata( const int64_t pdata_format )
              pdata_format );
     return 0;
 }
+#endif /*BGC2_SIZE*/
 
 #endif
 
