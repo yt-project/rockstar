@@ -20,6 +20,8 @@ real(SCALE_NOW, 1.0);
 real(h0, 0.7);
 real(Ol, 0.73);
 real(Om, 0.27);
+real(W0, -1);
+real(WA, 0);
 
 integer(GADGET_ID_BYTES, 4);
 real(GADGET_MASS_CONVERSION, 1e10);
@@ -28,10 +30,19 @@ integer(GADGET_SKIP_NON_HALO_PARTICLES, 1);
 integer(GADGET_HALO_PARTICLE_TYPE, 1);
 integer(RESCALE_PARTICLE_MASS, 0);
 
+#ifdef ENABLE_HDF5
+integer(AREPO_ID_BYTES, 8);
+real(AREPO_MASS_CONVERSION, 1e10);
+real(AREPO_LENGTH_CONVERSION, 1e-3);
+integer(AREPO_DM_PARTTYPE, 1);
+#endif /* ENABLE_HDF5 */
+
+#ifdef ENABLE_SDF
+string(SDF_HEADER, "");
+#endif /* ENABLE_SDF */
+
 real(TIPSY_LENGTH_CONVERSION, 1.0);
 real(TIPSY_VELOCITY_CONVERSION, 1.0);
-
-string(SDF_HEADER, "");
 
 integer(PARALLEL_IO, 0);
 string(PARALLEL_IO_SERVER_ADDRESS, "auto");
@@ -67,10 +78,12 @@ integer(FULL_PARTICLE_CHUNKS, 0);
 string(BGC2_SNAPNAMES, "");
 
 integer(SHAPE_ITERATIONS, 10);
+integer(WEIGHTED_SHAPES, 1);
 integer(BOUND_PROPS, 1);
 integer(BOUND_OUT_TO_HALO_EDGE, 0);
 integer(DO_MERGER_TREE_ONLY, 0);
 integer(IGNORE_PARTICLE_IDS, 0);
+integer(EXACT_LL_CALC, 0);
 real(TRIM_OVERLAP, 0);
 real(ROUND_AFTER_TRIM, 1);
 integer(LIGHTCONE, 0);
@@ -84,6 +97,7 @@ real(LIMIT_RADIUS, 0);
 
 integer(SWAP_ENDIANNESS, 0);
 integer(GADGET_VARIANT, 0);
+integer(ART_VARIANT, 0);
 
 real(FOF_FRACTION, 0.7);
 real(FOF_LINKING_LENGTH, 0.28);

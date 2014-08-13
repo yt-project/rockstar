@@ -37,7 +37,6 @@
 #define FAST3TREE_PREFIX ROCKSTAR
 #define POINTS_PER_LEAF 20
 #include "fast3tree.c"
-#define SKIP_THRESH 16
 
 struct particle *p = NULL;
 struct particle *original_p = NULL;
@@ -69,7 +68,7 @@ void rockstar(float *bounds, int64_t manual_subs) {
     if (BIT_TST(skip,i)) continue;
     fast3tree_find_sphere(tree, rockstar_res, p[i].pos, r);
     link_particle_to_fof(p+i, rockstar_res->num_points, rockstar_res->points);
-    if (rockstar_res->num_points > SKIP_THRESH) {
+    if (rockstar_res->num_points > FOF_SKIP_THRESH) {
       for (int64_t j=0; j<rockstar_res->num_points; j++)
 	BIT_SET(skip,(rockstar_res->points[j]-p));
       fast3tree_find_sphere(tree, rockstar_res, p[i].pos, 2.0*r);
@@ -216,7 +215,8 @@ void integrate_finished_workunit(struct workunit_info *w, struct fof *fofs, stru
       max_np = np2;
     }
     else {
-      fofs[i].particles += p - original_p;
+      offset = fofs[i].particles - original_p;
+      fofs[i].particles = p + offset;
       if (w->chunk == our_chunk)
 	memcpy(fofs[i].particles, parts + np, sizeof(struct particle)*fofs[i].num_p);
       else ignore_halos = 1;

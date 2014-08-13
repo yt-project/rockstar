@@ -7,6 +7,8 @@
 #include "../rockstar.h"
 #include "../groupies.h"
 #include "../check_syscalls.h"
+#include "../version.h"
+#include "../halo.h"
 
 void *output_buffer = NULL;
 int64_t buffered = 0;
@@ -22,6 +24,8 @@ void fill_binary_header(struct binary_output_header *bh,
   bh->h0 = h0;
   bh->box_size = BOX_SIZE;
   bh->particle_mass = PARTICLE_MASS;  
+  snprintf(bh->rockstar_version, VERSION_MAX_SIZE, "%s", ROCKSTAR_VERSION);
+  bh->format_revision = HALO_FORMAT_REVISION;
 }
 
 
@@ -118,7 +122,7 @@ void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds
   }
 
   //Output Particles
-  if (output_particles) {
+  if (output_particles && p != NULL) {
     for (i=0; i<num_halos; i++) {
       if (!_should_print(halos+i, bounds)) continue;
       for (j=0; j<halos[i].num_p; j++)

@@ -21,9 +21,21 @@ struct art_header1 {
   float Om0, Oml0, hubble, Box;
 } __attribute__ ((packed));
 
+struct art_header1a {
+  float AEXPN, ASTEP;
+  int32_t ISTEP, NROWC, NGRIDC, Nspecies, Nseed;
+  float Om0, Oml0, hubble, Box, MassOne;
+} __attribute__ ((packed));
+
 struct art_header2 {
   int32_t k, Nx, Ny, Nz;
   float dR;
+} __attribute__ ((packed));
+
+struct art_header2a {
+  int32_t node, Nx, Ny, Nz;
+  float dBuffer;
+  int32_t nBuffer;
 } __attribute__ ((packed));
 
 struct art_header3 {

@@ -1,12 +1,11 @@
 #include <math.h>
 #include <assert.h>
 #include "config_vars.h"
+#include "hubble.h"
 
-#define MAX_Z 100.0
+#define MAX_Z 300.0
 #define Z_BINS 1000.0
 #define TOTAL_BINS (((int)MAX_Z)*((int)Z_BINS))
-#define Omega_M Om
-#define Omega_L Ol
 #define h h0
 double Dh;
 double _Dc[TOTAL_BINS];
@@ -21,10 +20,7 @@ double _Dc[TOTAL_BINS];
 #define M_PI        3.14159265358979323846264338327950288   /* From math.h */
 #endif /* M_PI */
 
-double _E (double z) {
-  double z1 = 1.0+z;
-  return sqrt(Omega_M * (z1*z1*z1) + Omega_L);
-}
+#define _E(z) (hubble_scaling(z))
 
 void init_cosmology(void)
 {
@@ -98,3 +94,4 @@ double comoving_volume_to_redshift(double Vc) {
 double comoving_distance_h_to_redshift(double r) {
   return (comoving_distance_to_redshift(r/h));
 }
+

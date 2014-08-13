@@ -115,22 +115,17 @@ void rw_socket_close(FILE *res, pid_t pid) {
 
 void *check_realloc(void *ptr, size_t size, char *reason) {
   if (size > 0) {
-      int iter = 0;
-      void *res;
-      while (!(res = realloc(ptr, size))) {
-	  fprintf(stderr, "[Warning] Failed to allocate %ld Mbytes (%s)!\n", size, reason);
-	  /* sometimes works on multicore nodes with no swap */
-	  sleep(30);
-	  if (++iter > 20) {
-	      fprintf(stderr, "[Error] Failed to allocate memory (%s)!\n", reason);
-	      exit(1);
-	  }
-      }
-      return res;
+    void *res = realloc(ptr, size);
+    if (res == NULL) {
+      fprintf(stderr, "[Error] Failed to allocate memory (%s)!\n", reason);
+      exit(1);
+    }
+    return res;
   }
   if (ptr != NULL) free(ptr);
-  return NULL;
+  return(NULL);
 }
+
 
 void _io_err(int rw, size_t size, size_t nitems, FILE *stream) {
   char *verb = (rw) ? "write" : "read";

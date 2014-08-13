@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include "particle.h"
 
-//#define MIN_HALO_PARTICLES 10
-
 struct fof {
   int64_t num_p;
   struct particle *particles;

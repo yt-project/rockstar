@@ -18,7 +18,7 @@ struct halo_list all_halos = {0};
 struct halo_tree halo_tree = {0};
 
 #define GROUP_LIST all_halos.halos
-#define RADIUS rvir
+#define RADIUS vmax_r
 #define FAST3TREE_TYPE struct halo
 #include "../fast3tree.c"
 #define parent pid
@@ -80,6 +80,10 @@ void read_hlist(char *filename) {
   fclose(input);
   
   all_halos.halos = check_realloc(all_halos.halos, sizeof(struct halo)*all_halos.num_halos, "Allocating Halos.");
+
+  for (n=0; n<all_halos.num_halos; n++) {
+    all_halos.halos[n].vmax_r = all_halos.halos[n].rvir;
+  }
 
   find_parents(all_halos.num_halos);
 

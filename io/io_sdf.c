@@ -1,4 +1,7 @@
-/*   Copyright (C) 2013  Michael S. Warren */
+/* Copyright (C) 2013-2014  Michael S. Warren
+   Explicit permission granted to distribute with Rockstar under the GPLv3
+   The SDF library is available at https://bitbucket.org/JohnSalmon/SDF
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -9,6 +12,8 @@
 #include "io_sdf.h"
 #include "io_util.h"
 #include "../universal_constants.h"
+#include "../distance.h"
+#include "../hubble.h"
 #include "../check_syscalls.h"
 #include "../config_vars.h"
 #include "../config.h"
@@ -70,12 +75,27 @@ void sdf_rescale_particles(struct particle *p, int64_t p_start, int64_t nelems,
 			   double length_conversion, double vel_conversion) {
   int64_t i, j;
   double pos_rescale = length_conversion/SCALE_NOW;
-  double vel_rescale = vel_conversion;
+  double vel_rescale = vel_conversion*SCALE_NOW;
+  float ds, dx, z, scale_now, z1, hubble;
+  if (LIGHTCONE && SCALE_NOW != 1.0) Error("SCALE_NOW value inconsistent with LIGHTCONE\n");
   for (i=0; i<nelems; i++) {
+      dx = 0.0f;
       for (j=0; j<3; j++) {
 	  p[p_start+i].pos[j]   *= pos_rescale;
 	  p[p_start+i].pos[j]   += 0.5*BOX_SIZE;
 	  p[p_start+i].pos[j+3] *= vel_rescale;
+	  ds = p[p_start+i].pos[j]-LIGHTCONE_ORIGIN[j];
+	  dx += ds*ds;      
+      }
+      if (LIGHTCONE) { /* Remove hubble flow and convert from physical to comoving */
+	  z = comoving_distance_h_to_redshift(sqrt(dx));
+	  scale_now = scale_factor(z);
+	  z1 = 1.0/scale_now;
+	  hubble = 100.0*hubble_scaling(z1-1.0);
+	  for (j=0; j<3; j++) {
+	      p[p_start+i].pos[j+3] -= hubble * (p[p_start+i].pos[j]-LIGHTCONE_ORIGIN[j]);
+	      p[p_start+i].pos[j+3] *= scale_now;
+	  }
       }
   }
 }
@@ -107,6 +127,8 @@ void load_particles_sdf(char *name, char *header, struct particle **p, int64_t *
     sdfp = SDFopen(header, filename);
     if (sdfp == NULL) singlError("[Error] SDFopen failed, %s", SDFerrstring);
 
+    if (block == 0) fprintf(stderr, "libSDF Version: %s\n", libSDF_version);
+
     /* SDFget does not write third arg if key is not found */
     int fileversion = 0;
     SDFgetint(sdfp, "version", &fileversion);
@@ -127,9 +149,8 @@ void load_particles_sdf(char *name, char *header, struct particle **p, int64_t *
 	SDFgetdouble(sdfp, "Omega0_lambda",  &Ol);
 	SDFgetdouble(sdfp, "Omega0_fld",  &Of);
 	Ol += Of;
-	SDFgetdouble(sdfp, "H0",  &H0);
+	SDFgetdouble(sdfp, "h_100",  &h0);
 	Om += Or;	/* put Or into Om, not strictly correct */
-	h0 = H0*10.0*(one_kpc/one_Gyr);
     } else {
 	SDFgetint(sdfp, "units_rockstar", &units_rockstar);
 	if (!units_rockstar) {
@@ -212,8 +233,11 @@ void load_particles_sdf(char *name, char *header, struct particle **p, int64_t *
 	if (particle_mass[0] != particle_mass[1]) Error("[Error] unequal particle masses not supported\n");
 	PARTICLE_MASS = particle_mass[0];
 	if (units_2HOT) PARTICLE_MASS *= h0*1e10;
-    } else {
+    } else if (SDFhasname("part_mass", sdfp)) {
 	SDFgetdouble(sdfp, "part_mass", &PARTICLE_MASS);
+    } else {
+	SDFgetdouble(sdfp, "particle_mass", &PARTICLE_MASS);
+	if (units_2HOT) PARTICLE_MASS *= h0*1e10;
     }
 
     if (block == 0) fprintf(stderr, "SDFread %s PARTICLE_MASS %g BOX_SIZE %f SCALE_NOW %f\nOm %f h0 %f FORCE_RES %f TOTAL_PARTICLES %ld\n", 

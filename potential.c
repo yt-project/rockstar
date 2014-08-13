@@ -5,6 +5,7 @@
 #include "config_vars.h"
 #include "universal_constants.h"
 #include "potential.h"
+#include "hubble.h"
 
 #define POTENTIAL_ERR_TOL 1.0
 #define POTENTIAL_USE_BH 1
@@ -163,7 +164,7 @@ void compute_kinetic_energy(struct potential *po, int64_t num_po, float *vel_cen
   int64_t i,j;
   double dv=0, conv_const = 0.5 * SCALE_NOW / Gc;
   double z1=1.0/SCALE_NOW;
-  double hubble = 100.0*sqrt(Om*z1*z1*z1 + Ol);
+  double hubble = 100.0*hubble_scaling(z1-1.0);
   for (i=0; i<num_po; i++) {
     if (po[i].ke < 0) continue;
     po[i].ke = dv = 0;

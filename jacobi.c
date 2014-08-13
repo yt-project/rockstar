@@ -99,7 +99,7 @@ void jacobi_decompose(double cov_matrix[][NUM_PARAMS], double *eigenvalues, doub
       if (r) {							\
 	if (fabs(m[w][x])>fabs(m[w][max_col[w]]))		\
 	  max_col[w] = x;					\
-	if (fabs(m[y][z])>fabs(m[y][max_col[y]]))		\
+	if (y < NUM_PARAMS && fabs(m[y][z])>fabs(m[y][max_col[y]])) \
 	  max_col[y] = z;					\
       }
     

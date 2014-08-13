@@ -6,7 +6,7 @@
 
 extern GROUP_DATA_RMPVMAX *grps;
 extern PARTICLE_DATA_PV *parts;
-extern int64_t num_g, num_p;
+extern int64_t num_groups, num_parts;
 
 void load_bgc2(char *filename, struct bgc2_header *hdr,
 	       GROUP_DATA_RMPVMAX **groups, int64_t *num_groups,

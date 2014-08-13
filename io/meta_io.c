@@ -4,7 +4,6 @@
 #include <strings.h>
 #include <assert.h>
 #include <inttypes.h>
-#include <sys/stat.h>		/* mkdir */
 #include <math.h>
 #include <unistd.h>
 #include "../check_syscalls.h"
@@ -20,10 +19,16 @@
 #include "io_generic.h"
 #include "io_internal.h"
 #include "io_tipsy.h"
-#include "io_sdf.h"
 #include "meta_io.h"
 #include "../distance.h"
 #include "../version.h"
+
+#ifdef ENABLE_HDF5
+#include "io_arepo.h"
+#endif /* ENABLE_HDF5 */
+#ifdef ENABLE_SDF
+#include "io_sdf.h"
+#endif /* ENABLE_SDF */
 
 char **snapnames = NULL;
 char **blocknames = NULL;
@@ -66,7 +71,9 @@ void get_input_filename(char *buffer, int maxlen, int64_t snap, int64_t block) {
 	i+=5;
 	if (snapnames) snprintf(buffer+out, maxlen-out, "%s", snapnames[snap]);
 	else {
-	  if (!strncasecmp(FILE_FORMAT, "GADGET", 6)) 
+	  if (!strncasecmp(FILE_FORMAT, "GADGET", 6) ||
+	      !strncasecmp(FILE_FORMAT, "LGADGET", 7) ||
+	      !strncasecmp(FILE_FORMAT, "AREPO", 5))
 	    snprintf(buffer+out, maxlen-out, "%03"PRId64, snap);
 	  else snprintf(buffer+out, maxlen-out, "%"PRId64, snap);
 	}
@@ -87,10 +94,7 @@ void get_output_filename(char *buffer, int maxlen, int64_t snap, int64_t chunk, 
   int64_t out = 0;
   snprintf(buffer, maxlen, "%s/", OUTBASE);
   out = strlen(buffer);
-  if (snapnames) {
-      mkdir(snapnames[snap], 0777);
-      snprintf(buffer+out, maxlen-out, "%s/halos_%s", snapnames[snap], snapnames[snap]);
-  }
+  if (snapnames) snprintf(buffer+out, maxlen-out, "halos_%s", snapnames[snap]);
   else snprintf(buffer+out, maxlen-out, "halos_%"PRId64, snap);
   out = strlen(buffer);
   snprintf(buffer+out, maxlen-out, ".%"PRId64".%s", chunk, type);
@@ -103,7 +107,8 @@ void read_particles(char *filename) {
   float dx, ds, z, a, vel_mul;
   double *origin, origin_offset[3] = {0};
   if (!strcasecmp(FILE_FORMAT, "ASCII")) load_particles(filename, &p, &num_p);
-  else if (!strncasecmp(FILE_FORMAT, "GADGET", 6)) {
+  else if (!strncasecmp(FILE_FORMAT, "GADGET", 6)
+	   || !strncasecmp(FILE_FORMAT, "LGADGET", 7)) {
     load_particles_gadget2(filename, &p, &num_p);
     gadget = 1;
   }
@@ -118,8 +123,21 @@ void read_particles(char *filename) {
   }
   else if (!strncasecmp(FILE_FORMAT, "TIPSY", 5)) {
     load_particles_tipsy(filename, &p, &num_p);
+  }
+  else if (!strncasecmp(FILE_FORMAT, "AREPO", 5)) {
+#ifdef ENABLE_HDF5
+    load_particles_arepo(filename, &p, &num_p);
+#else
+    fprintf(stderr, "[Error] AREPO needs HDF5 support.  Recompile Rockstar using \"make with_hdf5\".\n");
+    exit(1);
+#endif
   } else if (!strncasecmp(FILE_FORMAT, "SDF", 3)) {
+#ifdef ENABLE_SDF
     load_particles_sdf(filename, SDF_HEADER, &p, &num_p);
+#else
+    fprintf(stderr, "[Error] SDF needs SDF support.\n");
+    exit(1);
+#endif
   }
   else {
     fprintf(stderr, "[Error] Unknown filetype %s!\n", FILE_FORMAT);
@@ -173,7 +191,7 @@ void read_particles(char *filename) {
 int _within_bounds(struct halo *h, float *bounds) {
   int64_t i;
   if (!bounds) return 1;
-  for (i=0; i<3; i++) if (h->pos[i]<bounds[i]||h->pos[i]>bounds[i+3]) return 0;
+  for (i=0; i<3; i++) if (h->pos[i]<bounds[i]||h->pos[i]>=bounds[i+3]) return 0;
   return 1;
 }
 
@@ -201,8 +219,8 @@ int64_t print_ascii_header_info(FILE *output, float *bounds, int64_t np) {
   chars += fprintf(output, "#Box size: %f Mpc/h\n", BOX_SIZE);
   if (np) chars+=fprintf(output, "#Total particles processed: %"PRId64"\n", np);
   chars += fprintf(output, "#Force resolution assumed: %g Mpc/h\n", FORCE_RES);
-  if (STRICT_SO_MASSES)
-      chars += fprintf(output, "#Using Strict Spherical Overdensity Masses\n");
+  if (STRICT_SO_MASSES && !np)
+    chars += fprintf(output, "#Using Strict Spherical Overdensity Masses\n");
   chars += fprintf(output, "#Units: Masses in Msun / h\n"
 	  "#Units: Positions in Mpc / h (comoving)\n"
 	  "#Units: Velocities in km / s (physical, peculiar)\n"
@@ -213,8 +231,8 @@ int64_t print_ascii_header_info(FILE *output, float *bounds, int64_t np) {
     chars += fprintf(output, "#Units: Total energy in (Msun/h)*(km/s)^2"
 		     " (physical)\n"
 	    "#Note: idx, i_so, and i_ph are internal debugging quantities\n");
-  chars += fprintf(output, "#Rockstar Version: %s\n", Rockstar_version);
-  chars += fprintf(output, "#libSDF Version: %s\n", libSDF_version);
+  chars += fprintf(output, "#Np is an internal debugging quantity.\n");
+  chars += fprintf(output, "#Rockstar Version: %s\n", ROCKSTAR_VERSION);
   return chars;
 }
 
@@ -226,14 +244,14 @@ void output_ascii(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
   get_output_filename(buffer, 1024, snap, chunk, "ascii");
   output = check_fopen(buffer, "w");
 
-  fprintf(output, "#id num_p m%s mbound_%s r%s vmax rvmax vrms x y z vx vy vz Jx Jy Jz E Spin PosUncertainty VelUncertainty bulk_vx bulk_vy bulk_vz BulkVelUnc n_core m%s m%s m%s m%s Xoff Voff spin_bullock b_to_a c_to_a A[x] A[y] A[z] Rs Rs_Klypin T/|U| idx i_so i_ph num_cp mmetric\n", MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION2, MASS_DEFINITION3, MASS_DEFINITION4, MASS_DEFINITION5);
+  fprintf(output, "#id num_p m%s mbound_%s r%s vmax rvmax vrms x y z vx vy vz Jx Jy Jz E Spin PosUncertainty VelUncertainty bulk_vx bulk_vy bulk_vz BulkVelUnc n_core m%s m%s m%s m%s Xoff Voff spin_bullock b_to_a c_to_a A[x] A[y] A[z] b_to_a(%s) c_to_a(%s) A[x](%s) A[y](%s) A[z](%s) Rs Rs_Klypin T/|U| M_pe_Behroozi M_pe_Diemer idx i_so i_ph num_cp mmetric\n", MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION2, MASS_DEFINITION3, MASS_DEFINITION4, MASS_DEFINITION5, MASS_DEFINITION4, MASS_DEFINITION4, MASS_DEFINITION4, MASS_DEFINITION4, MASS_DEFINITION4);
   print_ascii_header_info(output, bounds, num_p);
 
   for (i=0; i<num_halos; i++) {
     if (!_should_print(halos+i, bounds)) continue;
     th = halos+i;
     fprintf(output, "%"PRId64" %"PRId64" %.3e %.3e"
-	    " %f %f %f %f %f %f %f %f %f %f %g %g %g %g %g %f %f %f %f %f %f %"PRId64" %e %e %e %e %f %f %f %f %f %f %f %f %f %f %f %"PRId64" %"PRId64" %"PRId64" %"PRId64" %f\n", id+id_offset,
+	    " %f %f %f %f %f %f %f %f %f %f %g %g %g %g %g %f %f %f %f %f %f %"PRId64" %e %e %e %e %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %e %e %"PRId64" %"PRId64" %"PRId64" %"PRId64" %f\n", id+id_offset,
 	    th->num_p, th->m, th->mgrav, th->r,	th->vmax, th->rvmax, th->vrms,
 	    th->pos[0], th->pos[1], th->pos[2], th->pos[3], th->pos[4],
 	    th->pos[5], th->J[0], th->J[1], th->J[2], th->energy, th->spin,
@@ -241,7 +259,9 @@ void output_ascii(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
 	    th->bulkvel[1], th->bulkvel[2], sqrt(th->min_bulkvel_err),
 	    th->n_core, th->alt_m[0], th->alt_m[1], th->alt_m[2], th->alt_m[3], 
 	    th->Xoff, th->Voff, th->bullock_spin, th->b_to_a, th->c_to_a,
-	    th->A[0], th->A[1], th->A[2], th->rs, th->klypin_rs, th->kin_to_pot,
+	    th->A[0], th->A[1], th->A[2], th->b_to_a2, th->c_to_a2,
+	    th->A2[0], th->A2[1], th->A2[2], th->rs, th->klypin_rs, th->kin_to_pot,
+	    th->m_pe_b, th->m_pe_d,
 	    i, extra_info[i].sub_of, extra_info[i].ph, th->num_child_particles, extra_info[i].max_metric);
     id++;
   }
@@ -323,12 +343,8 @@ void output_halos(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
       || (TEMPORAL_HALO_FINDING && !LIGHTCONE))
     output_binary(id_offset, snap, chunk, bounds, 1);
 
-  if (chunk<FULL_PARTICLE_CHUNKS) {
-    if (!fork()) {
-      output_full_particles(id_offset, snap, chunk, bounds);
-      exit(0);
-    }
-  }
+  if (chunk<FULL_PARTICLE_CHUNKS)
+    output_full_particles(id_offset, snap, chunk, bounds);
 
   if (DUMP_PARTICLES[0] && (chunk >= DUMP_PARTICLES[1] &&
 			    chunk <= DUMP_PARTICLES[2]))
@@ -349,8 +365,8 @@ char *gen_merger_catalog(int64_t snap, int64_t chunk, struct halo *halos, int64_
     char buffer[1024];
     snprintf(buffer, 1024, "%s/out_%"PRId64".list", OUTBASE, snap);
     output = check_fopen(buffer, "w");
-    hchars += fprintf(output, "#ID DescID M%s Vmax Vrms R%s Rs Np X Y Z VX VY VZ JX JY JZ Spin rs_klypin M%s_all M%s M%s M%s M%s Xoff Voff spin_bullock b_to_a c_to_a A[x] A[y] A[z] T/|U|\n",
-	    MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION2, MASS_DEFINITION3, MASS_DEFINITION4, MASS_DEFINITION5);
+    hchars += fprintf(output, "#ID DescID M%s Vmax Vrms R%s Rs Np X Y Z VX VY VZ JX JY JZ Spin rs_klypin M%s_all M%s M%s M%s M%s Xoff Voff spin_bullock b_to_a c_to_a A[x] A[y] A[z] b_to_a(%s) c_to_a(%s) A[x](%s) A[y](%s) A[z](%s) T/|U| M_pe_Behroozi M_pe_Diemer\n",
+		      MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION, MASS_DEFINITION2, MASS_DEFINITION3, MASS_DEFINITION4, MASS_DEFINITION5, MASS_DEFINITION4, MASS_DEFINITION4, MASS_DEFINITION4, MASS_DEFINITION4, MASS_DEFINITION4);
     hchars += print_ascii_header_info(output, NULL, 0);
     fclose(output);
   }
@@ -364,13 +380,17 @@ char *gen_merger_catalog(int64_t snap, int64_t chunk, struct halo *halos, int64_
     th = halos+i;
     if (LIGHTCONE) for (j=0; j<3; j++) th->pos[j] -= LIGHTCONE_ORIGIN[j];
     m = (BOUND_PROPS) ? th->mgrav : th->m;
-    chars += snprintf(cur_pos, 1024, "%"PRId64" %"PRId64" %.4e %.2f %.2f %.3f %.3f %"PRId64" %.5f %.5f %.5f %.2f %.2f %.2f %.3e %.3e %.3e %.5f %.5f %.4e %.4e %.4e %.4e %.4e %.5f %.2f %.5f %.5f %.5f %.5f %.5f %.5f %.4f\n",
+    chars += snprintf(cur_pos, 1024, "%"PRId64" %"PRId64" %.4e %.2f %.2f %.3f %.3f %"PRId64" %.5f "
+		      "%.5f %.5f %.2f %.2f %.2f %.3e %.3e %.3e %.5f %.5f %.4e %.4e %.4e %.4e %.4e "
+		      "%.5f %.2f %.5f %.5f %.5f %.5f %.5f %.5f %.5f %.5f %.5f %.5f %.5f %.4f %.3e %.3e\n",
 	    th->id, th->desc, m, th->vmax, th->vrms, th->r, th->rs,
 	    th->num_p, th->pos[0], th->pos[1], th->pos[2], th->pos[3],
 	    th->pos[4], th->pos[5], th->J[0], th->J[1], th->J[2], th->spin,
 	    th->klypin_rs, th->m, th->alt_m[0], th->alt_m[1], th->alt_m[2],
 	    th->alt_m[3], th->Xoff, th->Voff, th->bullock_spin, th->b_to_a,
-	    th->c_to_a, th->A[0], th->A[1], th->A[2], th->kin_to_pot);
+	    th->c_to_a, th->A[0], th->A[1], th->A[2], th->b_to_a2, th->c_to_a2,
+	    th->A2[0], th->A2[1], th->A2[2], th->kin_to_pot, 
+	    th->m_pe_b, th->m_pe_d);
   }
   *cat_length = chars;
   *header_length = hchars;

@@ -11,7 +11,7 @@ struct halo {
   float scale;
   int64_t id, num_prog, phantom, pid, upid, mmp;
   struct halo *desc, *parent, *uparent, *prog, *next_coprog;
-  float mvir, orig_mvir, rvir, rs, vrms, scale_of_last_MM,
+  float mvir, orig_mvir, rvir, rs, vrms, vmax_r, scale_of_last_MM,
     vmax, pos[3], vel[3];
   EXTRA_HALO_INFO
 };

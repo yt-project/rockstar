@@ -135,9 +135,22 @@ void link_bgroups(int64_t gid1, int64_t gid2) {
   }
 }
 
+void mark_bgroup_tree(void) {
+  int64_t i,j;
+  struct tree3_node *nodes = bp_tree->root;
+  for (i=0; i<bp_tree->num_nodes; i++) {
+    if (nodes[i].flags & FAST3TREE_MARKED) continue;
+    for (j=1; j<nodes[i].num_points; j++)
+      if (nodes[i].points[j].bgid != nodes[i].points[0].bgid ||
+	  nodes[i].points[j].chunk != nodes[i].points[0].chunk) break;
+    if (j==nodes[i].num_points) _fast3tree_mark_node(nodes+i, FAST3TREE_MARKED);
+  }
+}
+
 void build_bgroup_links(void) {
   int64_t i,j;
   bp_tree = fast3tree_init(num_new_bp, bp + (num_bp - num_new_bp));
+  mark_bgroup_tree();
   bp_res = fast3tree_results_init();
   bg_ih = new_inthash();
   max_gid = -1;
@@ -156,9 +169,11 @@ void build_bgroup_links(void) {
   float r = AVG_PARTICLE_SPACING * FOF_LINKING_LENGTH;
   if (PERIODIC) _fast3tree_set_minmax(bp_tree, 0, BOX_SIZE);
   for (i=0; i<(num_bp-num_new_bp); i++) {
-    if (!PERIODIC) fast3tree_find_sphere(bp_tree, bp_res, bp[i].pos, r);
-    else fast3tree_find_sphere_periodic(bp_tree, bp_res, bp[i].pos, r);
     int64_t gid1 = find_bgroup(bp+i);
+    fast3tree_find_sphere_marked(bp_tree, bp_res, bp[i].pos, r, PERIODIC, 1);
+    //if (!PERIODIC) fast3tree_find_sphere(bp_tree, bp_res, bp[i].pos, r);
+    //else fast3tree_find_sphere_periodic(bp_tree, bp_res, bp[i].pos, r);
+
     for (j=0; j<bp_res->num_points; j++) {
       int64_t gid2 = find_bgroup(bp_res->points[j]);
       assert(gid1 > -1 && gid2 > -1);

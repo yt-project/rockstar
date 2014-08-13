@@ -183,6 +183,20 @@ void init_clients() {
   timed_output("Verified all reader / writer connections.\n");
 }
 
+int sort_by_address(const void *a, const void *b) {
+  const struct client_info *c = a;
+  const struct client_info *d = b;
+  int res = strcmp(c->address, d->address);
+  if (res) return res;
+  return strcmp(c->serv_port, d->serv_port);
+}
+
+void sort_clients() {
+  qsort(clients, NUM_READERS, sizeof(struct client_info), sort_by_address);
+  qsort(clients+NUM_READERS, NUM_WRITERS, 
+	sizeof(struct client_info), sort_by_address);
+}
+
 void transmit_client_info() {
   int64_t address_length = 0, i;
   for_writers(i) {
@@ -264,8 +278,9 @@ void check_num_writers(void) {
   int64_t factors[3] = {0};
   factor_3(NUM_WRITERS, factors);
   if ((factors[0] < 2) || (factors[1] < 2) || (factors[2] < 2)) {
-    fprintf(stderr, "[Error] NUM_WRITERS should be the product of at least three factors larger than 1!\n");
-    fprintf(stderr, "[Error] (Currently, %"PRId64" = %"PRId64" x %"PRId64" x %"PRId64"\n", NUM_WRITERS, factors[0], factors[1], factors[2]);
+    fprintf(stderr, "[Error] NUM_WRITERS should be the product of at least three factors larger than 1 for periodic boundary conditions to be enabled!\n");
+    fprintf(stderr, "[Error] (Currently, NUM_WRITERS = %"PRId64" = %"PRId64" x %"PRId64" x %"PRId64")\n", NUM_WRITERS, factors[0], factors[1], factors[2]);
+    fprintf(stderr, "[Error] Please adjust NUM_WRITERS or set PERIODIC=0 in the config file.\n");
     exit(1);
   }
 }
@@ -543,6 +558,7 @@ int server(void) {
   time_start = time(NULL);
   accept_clients(s);
   init_clients();
+  sort_clients();
   transmit_client_info();
   num_passes = NUM_BLOCKS / NUM_READERS;
   if (NUM_BLOCKS % NUM_READERS) num_passes++;

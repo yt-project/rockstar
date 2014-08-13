@@ -101,6 +101,8 @@ void load_full_particles(char *filename, struct halo **h, int64_t *num_h,
     if (!strncmp(buffer, "#Bounds: ", 9))
       sscanf(buffer, "#Bounds: (%f, %f, %f) - (%f, %f, %f)",
 	     bnds, bnds+1, bnds+2, bnds+3, bnds+4, bnds+5);
+    if (!strncmp(buffer, "#Box size: ", 11))
+      BOX_SIZE = atof(buffer+11);
   }
 
   //Halos

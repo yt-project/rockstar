@@ -1,4 +1,4 @@
-Short list of source code files and their contents:
+Short list of important source code files and their contents:
 
 main.c: Main program execution path.
 
@@ -15,6 +15,7 @@ halo.h: Halo structure definition
 particle.h: Particle structure definition
 universal_constants.h: Gravitational and conversion constants.
 jacobi.c: Code for calculating eigenvectors/eigenvalues of symmetric matrices.
+hubble.c: Code for calculating the Hubble scaling with redshift.
 distance.c: Code for calculating cosmological distances.
 universe_time.c: Code for converting scale factors to times.
 nfw.c: Code for calculating the scale radius.
@@ -39,5 +40,7 @@ config.template.h: Code for config variables.
 
 fast3tree.c: Binary Space Partitioning tree code.
 inthash.c: Lightweight hash tables optimized for integer keys.
+bitarray.h: Code for accessing and creating bit arrays.
+bounds.c: Code for checking boundary overlaps.
 check_syscalls.c: Error-checking for fopen(), realloc(), fread(), and fwrite().
 
