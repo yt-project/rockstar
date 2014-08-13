@@ -4,7 +4,6 @@
 #include <strings.h>
 #include <assert.h>
 #include <inttypes.h>
-#include <sys/stat.h>		/* mkdir */
 #include <math.h>
 #include <unistd.h>
 #include "../check_syscalls.h"
@@ -95,10 +94,7 @@ void get_output_filename(char *buffer, int maxlen, int64_t snap, int64_t chunk, 
   int64_t out = 0;
   snprintf(buffer, maxlen, "%s/", OUTBASE);
   out = strlen(buffer);
-  if (snapnames) {
-      mkdir(snapnames[snap], 0777);
-      snprintf(buffer+out, maxlen-out, "%s/halos_%s", snapnames[snap], snapnames[snap]);
-  }
+  if (snapnames) snprintf(buffer+out, maxlen-out, "halos_%s", snapnames[snap]);
   else snprintf(buffer+out, maxlen-out, "halos_%"PRId64, snap);
   out = strlen(buffer);
   snprintf(buffer+out, maxlen-out, ".%"PRId64".%s", chunk, type);
@@ -237,9 +233,6 @@ int64_t print_ascii_header_info(FILE *output, float *bounds, int64_t np) {
 	    "#Note: idx, i_so, and i_ph are internal debugging quantities\n");
   chars += fprintf(output, "#Np is an internal debugging quantity.\n");
   chars += fprintf(output, "#Rockstar Version: %s\n", ROCKSTAR_VERSION);
-#ifdef ENABLE_SDF
-  chars += fprintf(output, "#libSDF Version: %s\n", libSDF_version);
-#endif
   return chars;
 }
 
