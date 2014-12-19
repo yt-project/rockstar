@@ -1242,6 +1242,9 @@ void client(int64_t type) {
 
   srand(getpid()); /* so rand() in random_sleep() is different across procs */
   random_sleep(5*(NUM_WRITERS+NUM_READERS)/512);
+#ifdef RESET_RNG_STREAM
+  srand(1);
+#endif
   c = connect_to_addr(PARALLEL_IO_SERVER_ADDRESS, PARALLEL_IO_SERVER_PORT);
   recv_from_socket(c, &magic, sizeof(uint64_t));
   if (magic != ROCKSTAR_MAGIC) {
